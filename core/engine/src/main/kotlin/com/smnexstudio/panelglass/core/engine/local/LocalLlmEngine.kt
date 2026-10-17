@@ -2,6 +2,7 @@ package com.smnexstudio.panelglass.core.engine.local
 
 import android.content.Context
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
+import com.smnexstudio.panelglass.core.engine.PromptParts
 import com.smnexstudio.panelglass.core.engine.TranslationEngine
 import com.smnexstudio.panelglass.core.engine.llm.LlmContract
 import com.smnexstudio.panelglass.core.model.EngineException
@@ -282,11 +283,11 @@ object LocalPrompt {
         if (req.tgt == Lang.EN) append("Example input:\n0: おはよう\n1: 何で知ってるの？\nExample reply:\n0: Good morning.\n1: How do you know that?\n")
         if (req.notes.isNotBlank()) append("Reader's notes (follow them; use these pronouns):\n").append(req.notes.trim()).append('\n')
         if (req.glossary.isNotEmpty()) {
-            append("Glossary: ").append(req.glossary.entries.joinToString("; ") { it.key + " => " + it.value }).append('\n')
+            append("Glossary: ").append(PromptParts.glossaryInline(req.glossary)).append('\n')
         }
         if (req.priorContext.isNotEmpty()) {
             append("Earlier lines, for continuity only, do not output them:\n")
-            for (pair in req.priorContext.takeLast(2)) append("- ").append(pair.source).append(" => ").append(pair.translation).append('\n')
+            append(PromptParts.context(req.priorContext))
         }
     }
 
@@ -432,7 +433,7 @@ object LocalPrompt {
         val kindHint = if (item.kind == RegionKind.SFX)
             "This is a comic sound effect; reply with a short ${req.tgt.displayName} onomatopoeia."
         else "This is comic dialogue; keep it short and natural."
-        val glossary = if (req.glossary.isEmpty()) "" else "\nGlossary: " + req.glossary.entries.joinToString("; ") { it.key + " => " + it.value }
+        val glossary = if (req.glossary.isEmpty()) "" else "\nGlossary: " + PromptParts.glossaryInline(req.glossary)
         val notes = if (req.notes.isBlank()) "" else "\nReader's notes: " + req.notes.trim()
         return chat(
             "You translate ${req.src.displayName} to ${req.tgt.displayName}. $kindHint Reply with only the translation, nothing else.$glossary$notes",

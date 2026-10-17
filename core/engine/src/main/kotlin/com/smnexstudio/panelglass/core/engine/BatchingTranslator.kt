@@ -90,7 +90,10 @@ class BatchingTranslator @Inject constructor(
         var flushJob: Job? = null
     }
 
-    private val lanes = HashMap<String, Lane>()
+    /** Lanes are keyed by the full notes, not a hash of them: two series must never share a call. */
+    private data class LaneKey(val engineId: EngineId, val src: Lang, val tgt: Lang, val notes: String)
+
+    private val lanes = HashMap<LaneKey, Lane>()
     private val lock = Mutex()
 
     /** Returns one translated string per region; null means "leave this region alone". */
@@ -151,8 +154,7 @@ class BatchingTranslator @Inject constructor(
     }
 
     /** One lane per engine, language pair and notes: a call carries one set of notes. */
-    private fun laneKey(engineId: EngineId, first: Pending) =
-        engineId.name + "|" + first.src.code + "|" + first.tgt.code + "|" + first.notes.hashCode()
+    private fun laneKey(engineId: EngineId, first: Pending) = LaneKey(engineId, first.src, first.tgt, first.notes)
 
     private suspend fun enqueue(engineId: EngineId, items: List<Pending>) {
         val laneKey = laneKey(engineId, items.first())
@@ -171,7 +173,7 @@ class BatchingTranslator @Inject constructor(
         }
     }
 
-    private fun flushLocked(laneKey: String, lane: Lane) {
+    private fun flushLocked(laneKey: LaneKey, lane: Lane) {
         val members = ArrayList(lane.items.take(MAX_ITEMS))
         lane.items.subList(0, members.size).clear()
         lane.flushJob?.cancel(); lane.flushJob = null
@@ -203,7 +205,7 @@ class BatchingTranslator @Inject constructor(
         val items = batch.mapIndexed { idx, p -> p.item.copy(i = idx) }
         val src = batch.first().src; val tgt = batch.first().tgt
         val glossary = HashMap<String, String>().apply { batch.forEach { putAll(it.glossary) } }
-        val context = batch.flatMap { it.context }.distinct().takeLast(2)
+        val context = batch.flatMap { it.context }.distinct().takeLast(PromptParts.CONTEXT_LINES)
         val engine = when (val r = registry.resolve(engineId)) {
             is EngineResolution.Ready -> r.engine
             is EngineResolution.Failed -> { batch.forEach { it.result.completeExceptionally(EngineException(r.failure)) }; return }

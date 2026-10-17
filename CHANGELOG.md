@@ -39,6 +39,7 @@ workflow publishes the version's section as the GitHub Release notes.
 - Outlined lettering no longer leaves dark smudges after it is erased.
 - The reader no longer translates its own status badge (a "So" appeared under the ✓).
 - Two series saved as separate sites on the same website keep separate glossaries.
+- In rare cases, two series translated at the same moment could be sent with each other's notes.
 
 ## [0.2.0] - 2026-10-02
 

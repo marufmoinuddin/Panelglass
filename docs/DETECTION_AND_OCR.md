@@ -151,7 +151,7 @@ the snapshot includes it.
 
 ## Text nothing could read
 
-A `text_free` box the detectors are sure of (score ≥ 0.5) with no line read in it becomes a `TextLine.UNREADABLE`
+A `text_free` box the detectors are sure of (score ≥ 0.5) with no line read in it becomes a `ReadState.UNREADABLE`
 region of kind SFX, when SFX mode is Replace. It is never sent to an engine; the renderer only erases it
 (`RegionRenderer.eraseOnly`), and leaves it alone when the eraser refuses (art too busy to repaint).
 
@@ -160,7 +160,8 @@ region of kind SFX, when SFX mode is Replace. It is never sent to an engine; the
 When the engine reads images itself (`EngineId.readsCrops`, currently Gemini), detection runs with `read = false`:
 
 - no manga-ocr, no ML Kit on crops and no full-page backstop;
-- one `TextLine.UNREAD` placeholder per recognition target (vertical for tall CJK boxes);
+- one `ReadState.UNREAD` line per recognition target (vertical for tall CJK boxes); its text is only filler, the
+  state is what marks it;
 - regions built from placeholders are `unread`, and the pipeline sends their crops to the engine
   (see [FLOW.md](FLOW.md#translation)).
 

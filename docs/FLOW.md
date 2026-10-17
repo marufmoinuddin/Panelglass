@@ -121,7 +121,7 @@ flowchart TD
 
 Key points:
 
-- **The series comes first.** Before the cache lookup, `withSeries` merges the series' glossary into the config and
+- **The series comes first.** Before the cache lookup, `SeriesResolver.resolve` merges the series' glossary into the config and
   composes the notes (`TranslationNotes.compose`: characters with pronouns, then series notes, then Settings notes).
 - **Detection is never cached.** Pixels and the region of interest change with every scroll. Only the rendered
   patches are cached, keyed by the image hash, languages, engine, `PIPELINE_VERSION` (bump it whenever rendering

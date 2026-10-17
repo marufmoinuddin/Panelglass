@@ -196,9 +196,10 @@ phone, and everything is removed on uninstall.
   upgraded). The scripted-run extras (`engine`, `src`, `tgt`, `start`) are honoured only in debuggable builds.
 - **Debug and release side by side.** Debug builds use the application ID `com.smnexstudio.panelglass.debug` and the
   name "Panelglass Debug": their own data, keys and downloads; release builds keep `com.smnexstudio.panelglass`.
-- **In-app updates.** The APK URL must be https under this repository's `releases/download/` (`ReleaseInfo.PREFIX`);
-  the file is checked against the release's `.sha256` before Android's installer sees it, and the installer refuses
-  an APK signed with another key. `REQUEST_INSTALL_PACKAGES` and a FileProvider that shares only `updates/` make the
+- **In-app updates.** The APK URL must be https under this repository's `releases/download/` (`ReleaseInfo.PREFIX`,
+  from the `updateRepo` Gradle property, which the release workflow sets to the repository it runs in); the file is
+  checked against the release's `.sha256` before Android's installer sees it, and the installer refuses an APK signed
+  with another key. `REQUEST_INSTALL_PACKAGES` and a FileProvider that shares only `updates/` make the
   hand-off possible.
 - **User notes are instructions, page text is not.** Engines follow the reader's notes and glossary, but every prompt
   tells the model that page text is data, never instructions.

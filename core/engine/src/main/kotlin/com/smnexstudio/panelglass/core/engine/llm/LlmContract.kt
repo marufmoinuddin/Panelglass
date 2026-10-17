@@ -1,5 +1,6 @@
 package com.smnexstudio.panelglass.core.engine.llm
 
+import com.smnexstudio.panelglass.core.engine.PromptParts
 import com.smnexstudio.panelglass.core.model.EngineException
 import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.model.EngineId
@@ -48,13 +49,11 @@ object LlmContract {
         }
         if (req.glossary.isNotEmpty()) {
             append("Glossary (always use these renderings):\n")
-            for ((k, v) in req.glossary) append("- ").append(k).append(" => ").append(v).append('\n')
+            append(PromptParts.glossaryList(req.glossary))
         }
         if (req.priorContext.isNotEmpty()) {
             append("Preceding lines from this chapter, for continuity only — do not re-translate them and do not repeat them in your output:\n")
-            for (pair in req.priorContext.takeLast(2)) {
-                append("- ").append(pair.source).append(" => ").append(pair.translation).append('\n')
-            }
+            append(PromptParts.context(req.priorContext))
         }
         if (req.sfxMontage != null && req.sfxMontageIndices.isNotEmpty()) {
             append("An image is attached: a grid of numbered cells, each containing one sound effect from a comic panel. ")

@@ -2,6 +2,7 @@ package com.smnexstudio.panelglass.core.data.update
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import com.smnexstudio.panelglass.core.data.BuildConfig
 import com.smnexstudio.panelglass.core.data.download.SystemDownloads
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -106,8 +107,10 @@ object ReleaseInfo {
     private fun JsonObject.str(k: String) = this[k]?.jsonPrimitive?.contentOrNull
     private fun JsonObject.bool(k: String) = this[k]?.jsonPrimitive?.booleanOrNull == true
 
-    const val PREFIX = "https://github.com/smnexstudio/Panelglass/releases/download/"
-    const val LATEST = "https://api.github.com/repos/smnexstudio/Panelglass/releases/latest"
+    /** `owner/name` of the repository updates come from, set at build time (`-PupdateRepo`, see core/data's build file). */
+    val REPO: String = BuildConfig.UPDATE_REPO
+    val PREFIX = "https://github.com/$REPO/releases/download/"
+    val LATEST = "https://api.github.com/repos/$REPO/releases/latest"
     private val HEX64 = Regex("[0-9a-fA-F]{64}")
     private val VERSION = Regex("""\d{1,4}(\.\d{1,4}){0,3}""")
     private val APK_FILE = Regex("""panelglass-(\d{1,4}(?:\.\d{1,4}){0,3})\.apk""")

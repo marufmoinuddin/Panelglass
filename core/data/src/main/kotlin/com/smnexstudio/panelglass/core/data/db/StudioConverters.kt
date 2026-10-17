@@ -22,7 +22,7 @@ class StudioConverters {
     @TypeConverter fun textToStyle(v: String): BubbleStyle = runCatching { json.decodeFromString<BubbleStyle>(v) }.getOrDefault(BubbleStyle())
 
     @TypeConverter fun regionToText(v: TextRegion?): String? = v?.let { json.encodeToString(it) }
-    @TypeConverter fun textToRegion(v: String?): TextRegion? = v?.let { runCatching { json.decodeFromString<TextRegion>(it) }.getOrNull() }
+    @TypeConverter fun textToRegion(v: String?): TextRegion? = v?.let { runCatching { json.decodeFromString<TextRegion>(it).upgraded() }.getOrNull() }
 
     @TypeConverter fun sfxToText(v: SfxEdit?): String? = v?.let { json.encodeToString(it) }
     @TypeConverter fun textToSfx(v: String?): SfxEdit? = v?.let { runCatching { json.decodeFromString<SfxEdit>(it) }.getOrNull() }

@@ -116,7 +116,7 @@ class ComicTextDetector @Inject constructor(
             // missed stays untranslated; the engine only sees what it is sent).
             val targets = recognitionTargets(boxes).filterNot(skipRead)
             val lines = targets.map { t ->
-                TextLine(bbox = t.bbox, text = TextLine.UNREAD, vertical = lang.isCjk && lang != Lang.KO && t.bbox.height > t.bbox.width)
+                TextLine.unread(t.bbox, vertical = lang.isCjk && lang != Lang.KO && t.bbox.height > t.bbox.width)
             }
             android.util.Log.i(TAG, "boxes=${boxes.size} (+${extra.size} missed in ${missedMs}ms) targets=${targets.size} unread (engine reads the crops)")
             return@withContext PageDetection(lines, boxes)

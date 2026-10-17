@@ -2,6 +2,7 @@ package com.smnexstudio.panelglass.core.ocr
 
 import com.smnexstudio.panelglass.core.model.IntRect
 import com.smnexstudio.panelglass.core.model.Lang
+import com.smnexstudio.panelglass.core.model.ReadState
 import com.smnexstudio.panelglass.core.model.RegionKind
 import com.smnexstudio.panelglass.core.model.TextLine
 import com.smnexstudio.panelglass.core.model.TextNorm
@@ -66,11 +67,14 @@ class RegionClusterer(
         val vertical = group.count { it.vertical } * 2 >= group.size
         val ordered = if (vertical) group.sortedByDescending { it.bbox.right } // columns read right-to-left
         else group.sortedWith(compareBy({ it.bbox.top }, { it.bbox.left }))
+        // A region is unread or unreadable only when all its lines are; mixed with read lines, the read text is the text.
+        val state = ordered.map { it.state }.distinct().singleOrNull() ?: ReadState.READ
+        val texts = if (state == ReadState.READ) ordered.filter { it.state == ReadState.READ }.map { it.text } else listOf(ordered.first().text)
         // Korean separates words with spaces, so its line breaks are word breaks; Japanese and Chinese lines join directly.
-        val text = joinText(ordered.map { it.text }, (vertical || lang.isCjk) && lang != Lang.KO)
+        val text = joinText(texts, (vertical || lang.isCjk) && lang != Lang.KO)
         val bbox = ordered.map { it.bbox }.reduce(IntRect::union)
         val angle = ordered.map { it.angle }.average().toFloat()
-        return TextRegion(bbox = bbox, kind = RegionKind.FREE, angle = angle, vertical = vertical, text = text, lines = ordered)
+        return TextRegion(bbox = bbox, kind = RegionKind.FREE, angle = angle, vertical = vertical, text = text, lines = ordered, state = state)
     }
 
     /**

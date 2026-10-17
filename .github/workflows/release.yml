@@ -59,7 +59,8 @@ jobs:
           PANELGLASS_KEYSTORE_PASSWORD: ${{ secrets.PANELGLASS_KEYSTORE_PASSWORD }}
           PANELGLASS_KEY_ALIAS: ${{ secrets.PANELGLASS_KEY_ALIAS }}
           PANELGLASS_KEY_PASSWORD: ${{ secrets.PANELGLASS_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease -PversionName="$VERSION" --no-configuration-cache
+        # Updates come from the repository the release is built in, so a fork's releases update its own builds.
+        run: ./gradlew :app:assembleRelease -PversionName="$VERSION" -PupdateRepo="${{ github.repository }}" --no-configuration-cache
 
       - name: Verify the signature and checksum
         run: |

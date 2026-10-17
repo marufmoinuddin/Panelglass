@@ -3,7 +3,7 @@
 What the automated tests cover, how to run them, and the checks that still need a phone. The architecture under test
 is in [ARCHITECTURE.md](ARCHITECTURE.md); the translation flow in [FLOW.md](FLOW.md).
 
-Counts as of 2026-10-17: **403 unit tests** in 65 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-17: **419 unit tests** in 71 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -58,6 +58,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `NaturalSortTest` | 6 | Page order by file name: numbers by value (`2` before `10`, `p9` before `p10`), zero padding, case ignored, several number runs, runs longer than a Long |
 | `SiteMatchTest` | 6 | Which saved site owns a URL: subdomains, segment-boundary prefixes, several sites on one host; a saved series scopes its own glossary and notes (`seriesKeyFor`) |
 | `TranslationNotesTest` | 4 | What the AI engines are told: characters with pronouns first, then series and Settings notes; a term without a pronoun is no character; each note capped |
+| `ReadStateTest` | 3 | Only the read state marks a region unread or unreadable, never its text; a Studio region saved before the state existed is upgraded from its filler text; a region with a state round-trips unchanged |
 | `WebUrlTest` | 6 | https only: https kept, http upgraded, a bare host gets `https://`, whitespace trimmed; `javascript:`/`file:`/`content:`/`intent:`/`data:` and non-URLs are null |
 
 ### core:data (34)
@@ -78,10 +79,11 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `RegistryAndQwenTest` | 28 | **Engine selection:** the default is Google Translate; only Gemini, Google Translate and the on-device models are offered; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Qwen runs on* reloads Qwen on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
 | `ProviderEngineTest` | 9 | Against MockWebServer: 401 → `MissingKey`; a missing key never reaches the network; Gemini steps down past a request option a model refuses and remembers it; display names resolve to ids, Gemma models get no Gemini-only options; the model list keeps text models, Gemini first; OpenAI / OpenRouter send the user's model and key |
 | `LlmContractTest` | 14 | The cloud JSON contract: strict and tolerant parsing (prose, code fences), length mismatch and garbage are `Malformed`; HTTP status mapping, Gemini "high demand" is `Overloaded` with the provider's message; the retry policy is bounded and capped; glossary and montage mapping in the prompt; the reader's notes reach the cloud, on-device and per-item prompts and survive `withItems`; an on-device reply that repeats the source before its translation is cut to the translation, an ordinary colon is kept; a line holding another writing system than the target's (もちろん, गहराई in English) is retried, then its foreign words are cut |
+| `PromptPartsTest` | 2 | Glossary terms and the last two preceding lines are rendered once, the same way in the cloud and on-device prompts |
 | `GoogleTranslateEngineTest` | 9 | ML Kit translation behind its seam: every item translated, pack downloaded once; a pack the user has not downloaded is a typed `PackMissing` and nothing is fetched; glossary terms before and after; names learned in one request apply to the next; Japanese prepared first, Korean passed through; an echoed sound word romanised for Latin targets; a failed pack download is a typed `Unavailable` |
 | `JaPrepTest` | 7 | Japanese preparation for ML Kit: names found by honorific, whole-bubble and repetition (a loanword seen twice is not a name); names and honorifics swapped; casual negatives standardised; romaji for names and sound words |
 | `PageTranslatorTest` | 5 | *Translate page*: language detection falls back to the page language and rejects romanised text; same language returned unchanged; order kept, a failed text left as it was; all failing is an error; a language pair prepared once |
-| `BatchingTranslatorTest` | 4 | Gemini reads unread regions from their crops and returns what it read; an on-device model gets one image per call; a failure surfaces typed instead of switching provider; a cancelled caller cancels its generation |
+| `BatchingTranslatorTest` | 5 | Gemini reads unread regions from their crops and returns what it read; an on-device model gets one image per call; two series whose notes have the same hash never share a call; a failure surfaces typed instead of switching provider; a cancelled caller cancels its generation |
 | `SfxDictionaryTest` | 4 | The bundled SFX tables: hiragana finds the katakana entry; another ッ or ー still matches (ガツーン → ガツン); other words miss; both tables parse with a rendering for every entry |
 | `LanguagePackStoreTest` | 6 | Google Translate packs: every app language once (Chinese variants share a pack); only Japanese, Korean and Chinese download automatically; any other pack is missing until the user downloads it, and asking never downloads; English and packs already present are never fetched; a failure is reported for that language only; delete removes one pack, never English |
 
@@ -91,7 +93,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 |---|---|---|
 | `HighContrastTest` | 3 | The second OCR reading: dark lettering stays black on white, light lettering on dark art is inverted, a flat crop has nothing to separate |
 | `MissedTextTest` | 4 | The PP-OCRv6 second pass: a confident probability blob becomes a box grown as PaddleOCR unclips, a faint one is not text; nearby characters (타 + 닥) merge into one block; only boxes outside the comic detector's, and not tiny art print, are kept |
-| `RegionClustererTest` | 8 | Vertical columns merge right to left; centred horizontal lines merge top to bottom; vertical and horizontal never merge; font-size mismatch and distance keep bubbles apart; Japanese reads top-right first, English top-left; a Korean caption read twice is kept once |
+| `RegionClustererTest` | 9 | A region takes its lines' read state (unread, unreadable), and with read lines only their text; vertical columns merge right to left; centred horizontal lines merge top to bottom; vertical and horizontal never merge; font-size mismatch and distance keep bubbles apart; Japanese reads top-right first, English top-left; a Korean caption read twice is kept once |
 | `RegionBuilderTest` | 7 | One region per text box, read right to left; text boxes claim lines before the balloon around them; lines outside every box fall back to clustering; the box class seeds the kind but keeps colours; free text is left for the pixel classifier; lines with no letter are not text; a region knows whether a detector boxed it (a lone full-page letter is dropped by the pipeline) |
 | `RegionClassifierTest` | 6 | White bubble on busy art is `ENCLOSED`; grey box is `CAPTION`; text over art is `FREE`; big katakana over art is `SFX`; rotated free text is `IN_SCENE`; white lettering on a black burst reads light on dark |
 | `CropGeometryTest` | 4 | Crop scaling (small crops grow up to 3×, large ones shrink to the cap); rotated-pass rows map back to their column, both directions; corners round-trip |
@@ -120,6 +122,8 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 |---|---|---|
 | `BlockListTest` | 11 | Hosts and AdBlock formats parsed; exact hosts and their subdomains blocked, parents and unrelated hosts not; `@@` exceptions win; wildcard and context-scoped rules skipped; localhost ignored; cached form round-trips |
 | `PatchAnchorTest` | 8 | A patch is anchored to the image under its centre; it follows a reader moving its page in its own layer and scroll anchoring; no key, no anchor; an image off screen leaves the patch in place; the anchor is the same place on the art at any zoom; a patch's CSS rect scales with the zoom; one bubble captured at two zooms is a duplicate |
+| `SessionLanguagesTest` | 4 | The page's detected language applies on its host only; a site's saved source wins over it; the launch intent wins over both; ML Kit tags map to Japanese, Korean or Chinese (a chosen Chinese script is kept) |
+| `SeriesMemoryTest` | 2 | Glossary edits (Robolectric, in-memory Room): nothing is saved before the series is known; terms are trimmed and saved to the current series, a term with no rendering is not, and the writes are handed over once |
 | `ContentChangeTest` | 4 | Page turn without a scroll: another page is a change; our own patches and a fading control are not; all-patched cannot tell |
 | `SameSiteTest` | 3 | Same-site test for pop-ups: subdomains share a site, public suffixes do not; case and trailing dot ignored |
 
@@ -152,6 +156,8 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | Class | Tests | Covers |
 |---|---|---|
 | `TileDetectionTest` | 8 | Tall pages (over 2 widths) are tiled, short ones not; tiles cover a 800 × 20000 strip and overlap; the copies an overlap makes merge into one; the copy a tile saw whole wins over a cut one; a box cut in every tile is their union; different box kinds and separate bubbles stay apart; page edges are not cuts |
+| `DetectionStageTest` | 2 | A free-text box the detector is sure of with nothing read in it becomes an unreadable line; read, unsure and balloon boxes do not |
+| `SeriesResolverTest` | 2 | The patch-cache digest: empty with no glossary or notes; follows terms and notes, not their order |
 
 `core:ui`, `feature:library`, `feature:settings` and `:app` have no unit tests; the pipeline is also covered end to end
 by an instrumented test.

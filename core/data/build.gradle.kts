@@ -13,7 +13,13 @@ android {
     defaultConfig {
         minSdk = 31
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The GitHub repository in-app updates come from (`owner/name`): `-PupdateRepo=…`, so a fork's own releases
+        // update its builds. Release builds pass the repository they are built in.
+        val updateRepo = providers.gradleProperty("updateRepo").getOrElse("smnexstudio/Panelglass")
+        require(Regex("[A-Za-z0-9-]+/[A-Za-z0-9._-]+").matches(updateRepo)) { "updateRepo must be owner/name, got '$updateRepo'" }
+        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
     }
+    buildFeatures { buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

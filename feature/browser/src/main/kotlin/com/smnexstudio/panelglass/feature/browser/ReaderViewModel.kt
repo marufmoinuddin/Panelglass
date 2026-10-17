@@ -37,13 +37,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.smnexstudio.panelglass.core.data.repo.GlossaryRepository
 import com.smnexstudio.panelglass.core.model.GlossaryEntry
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.joinAll
 import org.json.JSONObject
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -197,47 +192,22 @@ class ReaderViewModel @Inject constructor(
 
     // ---- the series' names, pronouns and notes (⋮ › Glossary & pronouns) ------------------------------------
 
-    /** The page's series scope ([Site.seriesKeyFor]); "" before the config is resolved. */
-    private val seriesKeyNow: Flow<String> = _ui.map { it.config?.seriesKey.orEmpty() }.distinctUntilChanged()
+    private val series = SeriesMemory(
+        glossary, viewModelScope,
+        seriesKey = _ui.map { it.config?.seriesKey.orEmpty() },
+        keyNow = { _ui.value.config?.seriesKey.orEmpty() },
+    )
+    val seriesTerms: StateFlow<List<GlossaryEntry>> get() = series.terms
+    val seriesNotes: StateFlow<String> get() = series.notes
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val seriesTerms: StateFlow<List<GlossaryEntry>> = seriesKeyNow
-        .flatMapLatest { k -> if (k.isEmpty()) flowOf(emptyList()) else glossary.observe(k) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val seriesNotes: StateFlow<String> = seriesKeyNow
-        .flatMapLatest { k -> if (k.isEmpty()) flowOf(null) else glossary.observeNotes(k) }
-        .map { it.orEmpty() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
-
-    /**
-     * Writes made while the sheet was open. Anything the engine is told changed: what is on screen is translated
-     * again on close, once they have landed.
-     */
-    private val seriesWrites = ArrayList<Job>()
-
-    fun saveTerm(entry: GlossaryEntry) {
-        val key = _ui.value.config?.seriesKey?.takeIf { it.isNotEmpty() } ?: return
-        val source = entry.source.trim(); val target = entry.target.trim()
-        if (source.isEmpty() || target.isEmpty()) return
-        seriesWrites += viewModelScope.launch { glossary.upsert(entry.copy(seriesKey = key, source = source, target = target)) }
-    }
-
-    fun deleteTerm(entry: GlossaryEntry) {
-        seriesWrites += viewModelScope.launch { glossary.delete(entry) }
-    }
-
-    fun saveSeriesNotes(text: String) {
-        val key = _ui.value.config?.seriesKey?.takeIf { it.isNotEmpty() } ?: return
-        if (text.trim() == seriesNotes.value.trim()) return
-        seriesWrites += viewModelScope.launch { glossary.setNotes(key, text) }
-    }
+    fun saveTerm(entry: GlossaryEntry) = series.saveTerm(entry)
+    fun deleteTerm(entry: GlossaryEntry) = series.deleteTerm(entry)
+    fun saveSeriesNotes(text: String) = series.saveNotes(text)
 
     /** The sheet closed: a running screen session translates the viewport again with what was edited. */
     fun seriesSheetClosed() {
-        if (seriesWrites.isEmpty()) return
-        val writes = seriesWrites.toList(); seriesWrites.clear()
+        val writes = series.takeWrites()
+        if (writes.isEmpty()) return
         if (_screen.value.active) viewModelScope.launch {
             writes.joinAll()
             clearScreenPatches(); translateViewport()
@@ -532,30 +502,16 @@ class ReaderViewModel @Inject constructor(
     val autoStart: StateFlow<Boolean> = _autoStart
     fun consumeAutoStart() { _autoStart.value = false }
 
-    /** Languages from the launch intent (`src`/`tgt` extras): this reader session only, never saved to the site or Settings. */
-    private var langOverride: Pair<Lang?, Lang?> = null to null
+    private val languages = SessionLanguages()
 
+    /** Languages from the launch intent (`src`/`tgt` extras): this reader session only, never saved to the site or Settings. */
     fun overrideLanguages(src: Lang?, tgt: Lang?, start: Boolean) {
-        langOverride = src to tgt
+        languages.override(src, tgt)
         _ui.update { s -> s.copy(config = s.config?.let { withOverride(it, s.site) }) }
         if (start) _autoStart.value = true
     }
 
-    /**
-     * The language the page itself is written in ([detectPageLanguage]): Japanese, Korean or Chinese, kept for the
-     * host it was found on so the next chapter starts with it. A Korean webtoon read with the default Japanese
-     * recognizer came out as nonsense.
-     */
-    private var pageSrc: Pair<String, Lang>? = null
-
-    /**
-     * [cfg] with this session's languages: the launch intent's first, else the page's own language when the site has
-     * no saved source of its own (a saved choice always wins).
-     */
-    private fun withOverride(cfg: TranslateConfig, site: Site?): TranslateConfig {
-        val detected = pageSrc?.takeIf { site?.sourceLang == null && it.first == Site.hostOf(_ui.value.url) }?.second
-        return cfg.copy(src = langOverride.first ?: detected ?: cfg.src, tgt = langOverride.second ?: cfg.tgt)
-    }
+    private fun withOverride(cfg: TranslateConfig, site: Site?): TranslateConfig = languages.apply(cfg, site, _ui.value.url)
 
     /**
      * After a page loads: ML Kit's language identification on its visible text (and `<html lang>`). A page in another
@@ -563,20 +519,14 @@ class ReaderViewModel @Inject constructor(
      * launch intent set the source; the bar's "KO → EN" shows it. The screen is translated again if it was on.
      */
     private fun detectPageLanguage(url: String) {
-        if (langOverride.first != null) return
+        if (languages.sourceOverridden) return
         viewModelScope.launch {
             val sample = evalInPage("window.__pt ? __pt.sample() : null")?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return@launch
             val tag = pageTranslator.detect(sample.optString("text"), sample.optString("lang").ifEmpty { null }) ?: return@launch
             val cfg = _ui.value.config ?: return@launch
-            val lang = when (tag.substringBefore('-')) {
-                "ja" -> Lang.JA
-                "ko" -> Lang.KO
-                // ML Kit does not tell the two Chinese scripts apart: a Chinese source already chosen is kept.
-                "zh" -> if (cfg.src == Lang.ZH || cfg.src == Lang.ZH_TW) cfg.src else Lang.ZH
-                else -> return@launch
-            }
+            val lang = SessionLanguages.sourceFor(tag, cfg.src) ?: return@launch
             if (_ui.value.url != url || _ui.value.site?.sourceLang != null) return@launch
-            pageSrc = Site.hostOf(url) to lang
+            languages.pageIs(url, lang)
             if (lang == cfg.src) return@launch
             android.util.Log.i("ReaderViewModel", "page language ${lang.name}: source ${cfg.src.name} -> ${lang.name} for this session")
             val next = cfg.copy(src = lang)
