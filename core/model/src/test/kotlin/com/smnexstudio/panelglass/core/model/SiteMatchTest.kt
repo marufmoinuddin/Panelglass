@@ -38,6 +38,16 @@ class SiteMatchTest {
         assertEquals(other, Site.bestMatch(listOf(root, other), "https://page.kakao.com/content/70277593/viewer/1"))
     }
 
+    /** Names and pronouns of one saved series never leak into another on the same host. */
+    @Test
+    fun aSavedSeriesScopesItsOwnGlossary() {
+        assertEquals("rawkuma.net/manga/series-a", Site.seriesKeyFor(seriesA, "https://rawkuma.net/manga/series-a/chapter-1/"))
+        assertEquals("rawkuma.net/manga/series-b", Site.seriesKeyFor(seriesB, "https://rawkuma.net/manga/series-b/chapter-1/"))
+        assertEquals("rawkuma.net", Site.seriesKeyFor(root, "https://rawkuma.net/manga/series-c/"))
+        // No saved site: host and first path segment, as before.
+        assertEquals("rawkuma.net/manga", Site.seriesKeyFor(null, "https://rawkuma.net/manga/series-c/chapter-2/"))
+    }
+
     @Test
     fun anotherHostMatchesNothing() {
         assertNull(Site.bestMatch(listOf(seriesA, seriesB, root), "https://example.com/manga/series-a/"))

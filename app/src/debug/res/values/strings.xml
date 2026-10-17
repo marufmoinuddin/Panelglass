@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debug builds only: tells them apart from the release app in the launcher. -->
+    <string name="app_name" translatable="false">Panelglass Debug</string>
+</resources>

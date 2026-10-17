@@ -7,6 +7,39 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Glossary & pronouns** in the reader (⋮): character names and terms per series, each character with a pronoun
+  (he, she, they), plus notes for the series. Gemini and the on-device models use them; Google Translate uses the
+  names and terms.
+- **Translation notes** in Settings: instructions for the AI engines on every series (tone, honorifics, how to treat
+  missing subjects).
+- **Sound effects** setting: Keep, Gloss, Overlay or Replace the original effects in the reader.
+- **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector
+  missed; with Replace, effects nothing can read are still erased.
+- **In-app updates**: a newer release is offered once a day (Update, Skip this version, Later), downloaded, checked
+  against its SHA-256 and installed; Settings › About › Check for updates checks on demand, and *Check
+  automatically* turns the daily check off. A downloaded update is deleted once it is installed.
+- More Japanese and Korean sound effects in the built-in dictionary; hiragana and katakana spellings, and an extra
+  ッ or ー, now find the same entry.
+
+### Changed
+
+- The reader switches to the page's own language (Japanese, Korean or Chinese) when it differs from Settings, unless
+  the site has its own.
+- Text that reads as nothing is read again in high contrast, which finds narration on dark art and outlined lettering.
+- Editing a glossary or notes translates pages again instead of showing cached ones.
+- Debug builds install beside the release app as "Panelglass Debug".
+
+### Fixed
+
+- On-device models no longer leave the original language in a translation: a repeated source line is cut, and a line
+  that switches script mid-sentence is translated again.
+- The leading "……" of a speech balloon is erased with the rest of it.
+- Outlined lettering no longer leaves dark smudges after it is erased.
+- The reader no longer translates its own status badge (a "So" appeared under the ✓).
+- Two series saved as separate sites on the same website keep separate glossaries.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

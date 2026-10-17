@@ -11,6 +11,8 @@ import com.smnexstudio.panelglass.core.engine.EngineRegistry
 import com.smnexstudio.panelglass.core.engine.EngineResolution
 import com.smnexstudio.panelglass.core.engine.llm.GeminiEngine
 import com.smnexstudio.panelglass.core.model.ModelState
+import com.smnexstudio.panelglass.core.model.SfxMode
+import com.smnexstudio.panelglass.core.data.update.AppUpdates
 import android.content.Context
 import com.smnexstudio.panelglass.core.engine.local.DeviceMemory
 import com.smnexstudio.panelglass.core.engine.local.LocalModel
@@ -92,6 +94,7 @@ class SettingsViewModel @Inject constructor(
     private val mangaOcrStore: MangaOcrStore,
     private val lamaStore: LamaStore,
     private val studio: StudioRepository,
+    private val updates: AppUpdates,
 ) : ViewModel() {
     val settings: StateFlow<Settings> = repo.settings.stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
     val keys: StateFlow<Set<EngineId>> = registry.observeKeys().stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
@@ -134,10 +137,18 @@ class SettingsViewModel @Inject constructor(
     fun setAdBlock(v: Boolean) = viewModelScope.launch { repo.setAdBlockDefault(v) }
     /** Takes effect at Qwen's next call: a model already loaded on the other backend is reloaded then. */
     fun setQwenBackend(v: QwenBackend) = viewModelScope.launch { repo.setQwenBackend(v) }
+    fun setSfxMode(v: SfxMode) = viewModelScope.launch { repo.setSfxMode(v) }
+
+    /** Settings › About: the installed version, and a check for a newer release (shown by the app-wide dialog). */
+    val appVersion: String get() = updates.currentVersion
+    fun checkForUpdates() = updates.checkNow()
+    fun setAutoUpdateCheck(v: Boolean) = viewModelScope.launch { repo.setAutoUpdateCheck(v) }
     /** What Automatic picks on this phone (by its RAM), shown next to the choice. */
     val qwenAutoOnCpu: Boolean = DeviceMemory.qwenOnCpu(context, QwenBackend.AUTO)
     /** The reader's font, a Studio font id; null for Auto (the target language's comic font). */
     fun setReaderFont(id: String?) = viewModelScope.launch { repo.setReaderFont(id) }
+    /** Notes for the AI engines on every series. */
+    fun setTranslationNotes(v: String) = viewModelScope.launch { repo.setTranslationNotes(v) }
     /** The Studio's favourite fonts, shared with the reader's font picker. */
     val fontFavourites: StateFlow<List<String>> = repo.fontFavourites.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     fun toggleFontFavourite(id: String) = viewModelScope.launch { repo.toggleFontFavourite(id) }

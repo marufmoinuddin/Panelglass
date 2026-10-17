@@ -55,6 +55,15 @@ data class Site(
             return if (p.endsWith("/")) p else "$p/"
         }
 
+        /**
+         * The glossary and notes scope for a reader page: the saved [site] that owns it, by its own host and path (a
+         * site saved as one series, `/manga/a/`, keeps its names apart from `/manga/b/`), else [seriesKeyOf].
+         */
+        fun seriesKeyFor(site: Site?, url: String): String {
+            if (site == null) return seriesKeyOf(url)
+            return site.host + dirOf(site.url).trimEnd('/')
+        }
+
         /** host + first path segment; used to scope glossaries and reading context. */
         fun seriesKeyOf(url: String): String {
             val noScheme = url.substringAfter("://", url)
@@ -76,13 +85,54 @@ data class SfxCacheEntry(
     }
 }
 
+/**
+ * A name or term always rendered the same way in one series. A character's entry may carry the [pronoun] the source
+ * language leaves out (Japanese and Korean drop the subject), which the AI engines are told.
+ */
 @Entity(tableName = "glossary")
 data class GlossaryEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val seriesKey: String,
     val source: String,
     val target: String,
+    val pronoun: Pronoun? = null,
 )
+
+/** How a character is referred to. [prompt] is the engines' wording (English, as every prompt is). */
+enum class Pronoun(val prompt: String) {
+    HE("male, he/him"),
+    SHE("female, she/her"),
+    THEY("they/them, no gendered forms"),
+}
+
+/** The user's free-text notes for one series (who is who, tone), sent to the AI engines with the glossary. */
+@Entity(tableName = "series_notes")
+data class SeriesNotes(
+    @PrimaryKey val seriesKey: String,
+    val notes: String,
+)
+
+/**
+ * What the AI engines are told beyond the glossary: the characters' pronouns, then the series' notes, then the
+ * notes from Settings that apply everywhere. Each part is capped at [MAX_CHARS]: the on-device models share a
+ * 4096-token cache between prompt and reply.
+ */
+object TranslationNotes {
+    const val MAX_CHARS = 500
+
+    fun compose(entries: List<GlossaryEntry>, series: String, global: String): String {
+        val characters = entries.filter { it.pronoun != null && it.source.isNotBlank() }.joinToString("\n") { e ->
+            val name = e.target.trim().ifEmpty { e.source.trim() }
+            val alias = if (e.target.isNotBlank() && e.target.trim() != e.source.trim()) " (${e.source.trim()})" else ""
+            "- $name$alias: ${e.pronoun!!.prompt}"
+        }
+        return listOf(
+            if (characters.isEmpty()) "" else "Characters:\n$characters",
+            series.trim().take(MAX_CHARS),
+            global.trim().take(MAX_CHARS),
+        ).filter { it.isNotEmpty() }.joinToString("\n")
+    }
+}
 
 @Entity(tableName = "history")
 data class HistoryEntry(

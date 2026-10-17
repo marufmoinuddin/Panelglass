@@ -137,8 +137,17 @@ lettered pages.
   | **Qwen 2.5 1.5B** | On device (LiteRT-LM; GPU, or CPU on phones under 6 GB) | One-time 1.6 GB download | Offline LLM translation |
   | **Gemma 4 E2B** | On device (LiteRT-LM, GPU when available) | One-time 2.6 GB download, 8 GB RAM | Offline LLM translation, higher quality |
 
-- **Built for comics.** A bundled comic text and bubble detector finds the lettering; vertical Japanese is read by
-  the optional manga-ocr model or by ML Kit with a rotated second pass.
+- **Built for comics.** A bundled comic text and bubble detector finds the lettering, and a second detector
+  (PP-OCRv6) catches what it misses, above all brush-lettered sound effects; vertical Japanese is read by the optional
+  manga-ocr model or by ML Kit with a rotated second pass.
+- **Names, pronouns and notes.** Give a series' characters their spelling and a pronoun (*he*, *she*, *they*) in
+  ⋮ › *Glossary & pronouns*, and tell the AI engines about tone and honorifics in Settings › *Translation notes*.
+  Japanese and Korean leave subjects out; this is how the translation gets them right
+  ([more](docs/TRANSLATION_QUALITY.md)).
+- **Reads the page's language.** A Korean, Japanese or Chinese page switches the reader to that source language by
+  itself, unless you set one for the site.
+- **Sound effects your way.** Keep, gloss, overlay or replace them (Settings › *Sound effects*); with Replace, even
+  effects nothing can read are erased.
 - **Scrolling and paged readers.** Translations stay on their page image when the site shifts its layout, a page
   turn that does not scroll (tap or swipe readers) is noticed and translated, pages still downloading are picked up
   once they arrive, and rotating the phone translates the new layout.
@@ -157,6 +166,8 @@ lettered pages.
   *Try a translation* box to check an engine before reading.
 - **The app speaks your language.** The interface is in English by default and can be switched to any of the 15
   languages below (Arabic right to left) in Settings › App language.
+- **Updates itself.** A newer release is offered once a day (Update, Skip this version or Later), downloaded,
+  checked against its published SHA-256 and handed to Android's installer.
 
 **Languages.** Source: Japanese, Korean, Chinese (Simplified and Traditional), English, Spanish, French, German,
 Italian, Portuguese, Russian, Indonesian, Vietnamese. Target: all of those, plus Thai, Arabic and Hindi.
@@ -220,8 +231,8 @@ flowchart LR
 
 1. The WebView's viewport is captured (after a short wait for pages still downloading), and the page reports where
    its comic images are and which toolbars float above them, so only comic art is translated.
-2. An RT-DETR-v2 detector finds balloons and text; balloons cut off by the screen edge wait until they are fully on
-   screen.
+2. An RT-DETR-v2 detector finds balloons and text, and a PP-OCRv6 detector adds text it missed (mostly sound
+   effects); balloons cut off by the screen edge wait until they are fully on screen.
 3. Each text area is read on the device, or sent as a crop to Gemini, which reads and translates it in one call.
 4. The lettering is erased, the translation is fitted into the same space, and each region becomes a small patch
    drawn over the page, anchored to its page image so it moves with it as you scroll.
@@ -243,6 +254,11 @@ Panelglass is not on Google Play. Each release is published on GitHub:
    (`sha256sum -c panelglass-<version>.apk.sha256`, or compare with `certutil -hashfile <apk> SHA256` on Windows).
 3. Open the APK on your phone and allow your browser or file manager to install unknown apps when Android asks.
 4. To update, install the newer APK over the old one; your sites, settings and downloaded models are kept.
+   From 0.3.0 the app does this itself: once a day it asks GitHub for the latest release and offers it
+   (**Update**, **Skip this version** or **Later**); **Settings › About › Check for updates** checks on demand, and
+   **Check automatically** turns the daily check off. The
+   APK is downloaded by Android, checked against the release's `.sha256`, and handed to Android's installer (allow
+   Panelglass to install apps the first time).
 
 ### Set up
 
@@ -258,9 +274,12 @@ Panelglass is not on Google Play. Each release is published on GitHub:
      *downloaded*. Qwen runs on the GPU, or on the CPU on phones under 6 GB of RAM (about 3× slower, but far less
      memory); **Settings → Models → Qwen runs on** changes it ([details](docs/MEMORY_USAGE.md)).
 3. For Japanese with an offline engine, also download **Japanese manga OCR** (140 MB).
-4. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
-   **Stop** ends translation; **⋮ → Re-translate** reads the current screen again from scratch.
-5. For files you already have, open the **Studio** tab and tap **Import** ([how it works](#studio-translate-your-own-chapters)).
+4. Choose what happens to **Sound effects** (Keep, Gloss, Overlay or Replace) and, for Gemini or an on-device model,
+   add a few **Translation notes** ([suggested notes](docs/TRANSLATION_QUALITY.md#translation-notes)).
+5. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
+   **Stop** ends translation; **⋮ → Re-translate** reads the current screen again from scratch; **⋮ → Glossary &
+   pronouns** sets the series' character names and pronouns.
+6. For files you already have, open the **Studio** tab and tap **Import** ([how it works](#studio-translate-your-own-chapters)).
 
 ### Build from source
 
@@ -293,16 +312,23 @@ signed with a different key from the published releases, so uninstall one before
 - **Logs** contain timings and failure types only: no keys, page URLs or page text.
 - **Other network use**: the block lists ([AdGuard DNS filter](https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt),
   [HaGeZi pop-up ads](https://github.com/hagezi/dns-blocklists), [StevenBlack hosts](https://github.com/StevenBlack/hosts)
-  as a fallback), and the model downloads you start (Hugging Face; Google for ML Kit language packs). Every model
-  file is verified against a pinned SHA-256.
+  as a fallback), the model downloads you start (Hugging Face; Google for ML Kit language packs), and once a day a
+  request to GitHub for the latest release (nothing about you is sent; turn it off in **Settings › About › Check
+  automatically**; debug builds never check by themselves). Every model file and update is verified against a
+  SHA-256, and an installed update's APK is deleted at the next start.
+- **Translation notes and glossaries** stay on the device; they are sent only to the engine you chose, with the text
+  being translated.
 - **Studio files** (imported pages, edits, your own fonts) stay in the app's private storage. An export is written
   only where you choose, and Settings › Storage deletes a manga with everything it took.
 - **Uninstalling** removes everything the app stored; nothing is backed up.
 
 ## Documentation
 
+Start at the **[documentation map](docs/README.md)**, which sends you to the right document for your question.
+
 | Document | Contents |
 |---|---|
+| [docs/TRANSLATION_QUALITY.md](docs/TRANSLATION_QUALITY.md) | Better translations: engines, source language, glossary and pronouns, notes, sound effects, known limits |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules, components, engines, storage, concurrency, security model |
 | [docs/FLOW.md](docs/FLOW.md) | A screen's journey: capture → pipeline → translation → rendering → overlay; failures; diagnostics |
 | [docs/DETECTION_AND_OCR.md](docs/DETECTION_AND_OCR.md) | The comic text and bubble detector, recognizers, regions and classification |
@@ -313,11 +339,11 @@ signed with a different key from the published releases, so uninstall one before
 ### Project structure
 
 ```
-app/                  MainActivity, navigation, application class
-core/model/           Pure Kotlin types: languages, engines, failures, regions, settings
-core/data/            Room, DataStore settings, encrypted key store, patch cache, verified downloads
-core/engine/          Engine registry and retry policy; Gemini, ML Kit translation, on-device LLMs
-core/ocr/             Comic text/bubble detector (ONNX), manga-ocr and ML Kit recognizers, region building
+app/                  MainActivity, navigation, application class, update dialog
+core/model/           Pure Kotlin types: languages, engines, failures, regions, settings, glossary, notes
+core/data/            Room, DataStore settings, encrypted key store, patch cache, verified downloads, updates
+core/engine/          Engine registry and retry policy; Gemini, ML Kit translation, on-device LLMs, SFX dictionary
+core/ocr/             Comic detector and PP-OCRv6 second pass (ONNX), manga-ocr and ML Kit recognizers, regions
 core/render/          Text erasing and fitting, WEBP patches; the Studio's cleaning, lettering and fonts
 core/pipeline/        TranslationPipeline: detect → read → translate → render, with per-stage watchdogs
 core/ui/              Shared Compose components, themes, engine picker, key sheet, all UI strings (16 languages)
@@ -325,7 +351,7 @@ feature/browser/      Reader: WebView, capture, patch overlay, ad and pop-up blo
 feature/library/      Sites and history
 feature/settings/     Languages, engines, models, fonts, themes, storage
 feature/studio/       Studio: library, import (images, PDF, CBZ), translate, review editor, fonts, export
-docs/                 Architecture, flow and detection/OCR documentation
+docs/                 Documentation (start at docs/README.md)
 ```
 
 ### Development
@@ -395,6 +421,8 @@ Panelglass is an open-source project distributed directly via [GitHub Releases](
 ## Acknowledgements
 
 - Comic text and bubble detector by [ogkalu](https://huggingface.co/ogkalu) (RT-DETR-v2, Apache-2.0).
+- Second-pass text detector [PP-OCRv6 tiny](https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_det_onnx) by
+  PaddlePaddle (Apache-2.0).
 - [manga-ocr](https://github.com/kha-white/manga-ocr) by kha-white, via the
   [l0wgear/manga-ocr-2025-onnx](https://huggingface.co/l0wgear/manga-ocr-2025-onnx) export.
 - [Qwen2.5-1.5B-Instruct](https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct) (Alibaba, Apache-2.0) and
@@ -428,5 +456,5 @@ Copyright 2026 smnexstudio.
 Panelglass is licensed under the [Apache License, Version 2.0](LICENSE). You may use, modify and distribute it,
 including commercially, provided you keep the copyright and licence notices and state significant changes.
 
-The licence covers the Panelglass source code and documentation. Third-party files in this repository (the
-detector model and the fonts) keep their own licences, listed in [NOTICE](NOTICE); downloaded models keep theirs.
+The licence covers the Panelglass source code and documentation. Third-party files in this repository (the two
+detector models and the fonts) keep their own licences, listed in [NOTICE](NOTICE); downloaded models keep theirs.

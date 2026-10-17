@@ -27,9 +27,13 @@ class PatchCache(
     private val mutex = Mutex()
     private var totalBytes: Long = -1
 
-    /** [font]: the lettering font id (null is Auto), so a page is drawn again after the font changes. */
-    fun key(imageHash: String, src: Lang, tgt: Lang, engine: EngineId, pipelineVersion: Int, font: String? = null): String =
-        "$imageHash|${src.code}|${tgt.code}|${engine.name}|v$pipelineVersion|${font ?: "auto"}"
+    /**
+     * [font]: the lettering font id (null is Auto), so a page is drawn again after the font changes. [series]: a
+     * digest of the glossary and notes the engine was given ("" when there were none, which keeps older keys), so
+     * an edit to them translates the page again.
+     */
+    fun key(imageHash: String, src: Lang, tgt: Lang, engine: EngineId, pipelineVersion: Int, font: String? = null, series: String = ""): String =
+        "$imageHash|${src.code}|${tgt.code}|${engine.name}|v$pipelineVersion|${font ?: "auto"}" + (if (series.isEmpty()) "" else "|$series")
 
     suspend fun get(key: String): CachedPage? = withContext(Dispatchers.IO) {
         val f = fileFor(key)

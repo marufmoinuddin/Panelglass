@@ -113,6 +113,7 @@ class StudioTranslator @Inject constructor(
                 sfxMode = s.sfxMode, freeTextMode = s.freeTextMode, fontId = s.readerFontId, contextMode = s.contextMode,
                 // The manga's own glossary (the "Remember this effect" entries, later).
                 seriesKey = seriesKey(manga.id),
+                notes = s.translationNotes,
             ),
         )
     }

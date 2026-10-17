@@ -52,6 +52,12 @@ Besides a settled scroll, three things start another capture of the same session
 - **A canvas reader that showed nothing yet.** Readers that draw pages on a `<canvas>` (bilibili) show a loading
   picture that the DOM does not announce: a canvas capture that found no text is retried once, 2 s later.
 - **A page turn without a scroll**, and **rotation**: see [Showing patches while scrolling](#showing-patches-while-scrolling).
+- **A new source language.** After every page load the reader identifies the language of the page's visible text
+  (`ReaderViewModel.detectPageLanguage`: `pt.js` `sample()` and ML Kit language identification). A Japanese, Korean or
+  Chinese page that differs from the configured source switches the session to it and translates the screen again,
+  unless the site has a saved source or a launch intent set one. The choice is kept for the host.
+- **Edited glossary or notes.** Closing the reader's *Glossary & pronouns* sheet after a change waits for the writes,
+  clears the patches on screen and translates the viewport again.
 
 **In the background** (Home, or another app on top), the session is not paused: a screen already in the pipeline is
 finished. An on-device model is released as soon as it is idle, at the latest 5 s after its last call, unless the
@@ -79,7 +85,8 @@ app comes back first; the next translation then reloads it (see
 
    These become the `RegionOfInterest`:
    - `include`: detections outside every image rect are not comic text (menus, comments, ads);
-   - `exclude`: detections under a floating control are not translated;
+   - `exclude`: detections under a floating control are not translated, nor anything under the reader's own status
+     disc in the top-right corner (`StatusDiscSpec.rectIn`): the snapshot includes it, and its ✓ was once read as ソ;
    - `done`: areas already covered by a patch from an earlier capture are not read or translated again.
 
    The capture also keeps callbacks to ask the page again later: where each image is now (`layoutNow`), how many
@@ -92,29 +99,37 @@ watchdog.
 
 ```mermaid
 flowchart TD
+    S[Series glossary + notes<br/>+ Settings notes] --> A
     A[Snapshot bitmap] --> B{Patch cache hit?}
     B -- yes --> Z[Emit cached patches]
     B -- no --> C[Downscale to ≤1600 px<br/>for detection]
     C --> D[Comic text/bubble detector]
-    D --> E[Drop boxes outside the ROI,<br/>under controls, already done,<br/>or cut by the screen edge]
+    D --> D2[Second pass: PP-OCRv6 tiny<br/>text outside the comic boxes]
+    D2 --> E[Drop boxes outside the ROI,<br/>under controls, already done,<br/>or cut by the screen edge]
     E --> F{Engine reads crops?}
     F -- "Gemini" --> G[One UNREAD placeholder<br/>per text box]
-    F -- "Google Translate / on-device LLM" --> H[OCR each box<br/>manga-ocr or ML Kit<br/>+ full-page ML Kit backstop]
+    F -- "Google Translate / on-device LLM" --> H[OCR each box<br/>manga-ocr or ML Kit, high-contrast retry<br/>+ full-page ML Kit backstop]
     G --> I[Build regions<br/>one per detector box]
     H --> I
     I --> J[Classify each region<br/>ENCLOSED · CAPTION · FREE · SFX · IN_SCENE]
     J --> K[Reading order]
     K --> L[Translate]
-    L --> M[Erase + fit + draw]
+    L --> M[Erase + fit + draw<br/>unreadable SFX: erase only]
     M --> N[Encode WEBP patch,<br/>emit immediately]
     N --> O[(Store page in patch cache)]
 ```
 
 Key points:
 
+- **The series comes first.** Before the cache lookup, `withSeries` merges the series' glossary into the config and
+  composes the notes (`TranslationNotes.compose`: characters with pronouns, then series notes, then Settings notes).
 - **Detection is never cached.** Pixels and the region of interest change with every scroll. Only the rendered
-  patches are cached, keyed by the image hash, languages, engine and `PIPELINE_VERSION` (bump it whenever rendering
-  changes).
+  patches are cached, keyed by the image hash, languages, engine, `PIPELINE_VERSION` (bump it whenever rendering
+  changes), the lettering font, and a digest of the glossary and notes (so editing them translates again).
+- **Two detectors.** Text the comic detector missed and the second pass found joins as free-text boxes. A sure
+  free-text box nothing could read becomes an *unreadable* sound-effect region when SFX mode is Replace: it is never
+  sent to an engine, only erased.
+- **Lone letters.** A single letter that only the full-page ML Kit pass saw, outside every detector box, is dropped.
 - **Filtering happens before OCR.** Boxes the pipeline would drop anyway are skipped before recognition
   (`detectPage(..., skipRead)`), because per-crop manga-ocr is the slowest stage.
 - **Edge-cut bubbles** (a text box touching the top or bottom of the snapshot) are deferred. They are translated when
@@ -126,7 +141,11 @@ Key points:
 
 `BatchingTranslator` sits between the pipeline and the engine:
 
-- **SFX** go through a dictionary, then the SFX cache (Room), then the engine.
+- **The reader's instructions.** Every call carries the glossary and the composed notes; cloud prompts
+  (`LlmContract`) and on-device prompts (`LocalPrompt`) follow them, while page text stays data. Items with different
+  notes are never batched into one call.
+- **SFX** go through a dictionary (hiragana read as katakana; extra ッ / ー ignored), then the SFX cache (Room), then
+  the engine.
 - **Duplicates** (the same normalised text) are translated once.
 - **Cloud engines** get up to 60 items per call, because their latency is dominated by round trips.
 - **On-device LLMs** get the viewport in groups of 4 bubbles in reading order. Each group is rendered as soon as it
@@ -135,6 +154,10 @@ Key points:
 - **Gemini's reading mode.** Each region is cropped with 6% padding, encoded as JPEG (longest side 512) and sent as
   an image right after a text part `Item <i>`. Gemini returns `{i, source, text}`. `withReading` swaps the placeholder
   for the text Gemini read, and derives the glyph size from area per character.
+- **On-device replies are checked.** A reply line that repeats the source before its translation is cut to the
+  translation (`withoutSource`). A line holding another writing system than the target's (an echo, or a language
+  switch mid-sentence) is translated again on its own; a retry that still holds one loses those words
+  (`withoutStrayScript`). Each target allows its own script plus Latin.
 
 ## Erasing and rendering
 
@@ -142,9 +165,13 @@ Key points:
 
 1. **Erase** (`TextEraser`), by region kind:
    - **ENCLOSED / CAPTION:** flood-fill from the container ring to find the background, then fill the glyphs with the
-     sampled colour.
-   - **FREE / IN_SCENE:** an Otsu glyph mask, a halo test, then ray inpainting (8 rays per pixel, weighted median),
-     gated by gradient variance so a smeared result is discarded rather than shown.
+     sampled colour. For balloon text the erase covers the whole balloon (unless it is far wider than the text, as
+     joined balloons are), so a line the reading left out ("……") goes too; the outline is kept.
+   - **FREE / IN_SCENE:** an Otsu glyph mask grown by about 8% of the glyph height (up to 12 px) so a lettering
+     outline goes with the fill, a halo test, then ray inpainting (8 rays per pixel, weighted median), gated by
+     gradient variance so a smeared result is discarded rather than shown.
+   - **Unreadable sound effects** (Replace mode): erased only (`RegionRenderer.eraseOnly`); if the eraser refuses, the
+     original stays rather than a blank box.
    - **Text on art that cannot be cleanly erased:** the source footprint is masked (white on art, the box colour in
      captions) and the translation is fitted into that footprint. The text box is never widened into a panel.
 2. **Fit** (`RegionRenderer.fit`): binary search on the font size using two monotonic tests only:
@@ -208,7 +235,7 @@ Transient failures are retried on the same engine first (see [ARCHITECTURE.md](A
   `EngineFailure` class name, which R8 keeps readable in release builds (`app/proguard-rules.pro`).
 - **Session events** are logged under `ScreenSession` (follow-up captures, page turns, patches moved back onto their
   images) and `ScreenCapture` (the page map's image, overlay and pending counts).
-- **Debug dump.** `adb shell run-as com.smnexstudio.panelglass mkdir files/debug-dump`, translate a screen, then pull
+- **Debug dump.** `adb shell run-as com.smnexstudio.panelglass.debug mkdir files/debug-dump`, translate a screen, then pull
   `files/debug-dump/<run>/`. It holds `page.png`, `regions.txt` (kind, box, text, translation, erase method and every
   font size tried: `ok`, `T` too tall, `W` a word too wide) and each `patch-N.webp`. Remove the folder afterwards;
   `PipelineDump` does nothing without it.

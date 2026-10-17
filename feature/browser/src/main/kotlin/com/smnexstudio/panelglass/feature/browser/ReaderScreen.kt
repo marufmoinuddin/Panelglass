@@ -76,6 +76,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.ui.PrimaryPill
+import com.smnexstudio.panelglass.core.ui.SeriesMemorySheet
 import com.smnexstudio.panelglass.core.ui.TextAction
 import com.smnexstudio.panelglass.core.ui.Tokens
 import com.smnexstudio.panelglass.feature.browser.web.NewWindows
@@ -112,6 +113,9 @@ fun ReaderScreen(
     var editing by remember { mutableStateOf(false) }
     var urlText by remember { mutableStateOf(initialUrl) }
     var menu by remember { mutableStateOf(false) }
+    var seriesSheet by remember { mutableStateOf(false) }
+    val seriesTerms by vm.seriesTerms.collectAsStateWithLifecycle()
+    val seriesNotes by vm.seriesNotes.collectAsStateWithLifecycle()
 
     LaunchedEffect(initialEngine) {
         if (!initialEngine.isNullOrBlank()) {
@@ -226,6 +230,8 @@ fun ReaderScreen(
                     DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_retranslate)) }, onClick = { menu = false; vm.retranslateScreen { captureViewport(webView) } })
                     // The page's own text (titles, chapter lists), not the art: Chrome's translate bar, on ML Kit.
                     DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_translate_page)) }, onClick = { menu = false; vm.pageText.open() })
+                    // The series' names, characters' pronouns and notes: what the engine is told beyond the page.
+                    if (ui.config != null) DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_series_memory)) }, onClick = { menu = false; seriesSheet = true })
                     if (ui.site == null) DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_add_to_sites)) }, onClick = { menu = false; scope.launch { vm.addCurrentSite() } })
                 }
             }
@@ -288,6 +294,11 @@ fun ReaderScreen(
                     else ErrorRow(stringResource(UiR.string.error_unavailable_now, failure.engine.uiName()), stringResource(UiR.string.action_use_google_translate)) { vm.switchToOnDevice { captureViewport(webView) } }
                 else -> Unit
             }
+            if (seriesSheet) SeriesMemorySheet(
+                scope = ui.config?.seriesKey.orEmpty(), terms = seriesTerms, notes = seriesNotes,
+                onSaveTerm = vm::saveTerm, onDeleteTerm = vm::deleteTerm, onNotes = vm::saveSeriesNotes,
+                onDismiss = { seriesSheet = false; vm.seriesSheetClosed() },
+            )
             // Both states keep one height: a bar that changes height resizes the WebView, and a reader that centres
             // its page (bilibili) then moves the art under patches already made (11 px on a phone: the first
             // capture ran at the idle bar's height, the patches showed at the active one's).

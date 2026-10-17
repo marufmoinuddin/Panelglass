@@ -38,13 +38,13 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
      * Queues [url] into `root()/[relativePath]`. The file is written as `…part` and renamed by [await] once complete,
      * so a half-written file is never mistaken for a model. Starting an already queued key is a no-op.
      */
-    fun start(key: String, url: String, relativePath: String, title: String) {
+    fun start(key: String, url: String, relativePath: String, title: String, description: String = "Panelglass on-device model") {
         if (isActive(key)) return
         val root = root() ?: throw IOException("Storage unavailable")
         File(root, "$relativePath.part").apply { parentFile?.mkdirs(); delete() }
         val req = DownloadManager.Request(Uri.parse(url))
             .setTitle(title)
-            .setDescription("Panelglass on-device model")
+            .setDescription(description)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, null, "$relativePath.part")
             .setAllowedOverMetered(true)

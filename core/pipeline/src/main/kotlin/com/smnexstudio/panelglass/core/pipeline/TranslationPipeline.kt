@@ -18,10 +18,12 @@ import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.PageResult
 import com.smnexstudio.panelglass.core.model.Patch
 import com.smnexstudio.panelglass.core.model.RegionKind
+import com.smnexstudio.panelglass.core.model.SfxMode
 import com.smnexstudio.panelglass.core.model.SkipReason
 import com.smnexstudio.panelglass.core.model.TextLine
 import com.smnexstudio.panelglass.core.model.TextRegion
 import com.smnexstudio.panelglass.core.model.TranslateConfig
+import com.smnexstudio.panelglass.core.model.TranslationNotes
 import com.smnexstudio.panelglass.core.ocr.BoxKind
 import com.smnexstudio.panelglass.core.ocr.PageDetection
 import com.smnexstudio.panelglass.core.ocr.PanelCutter
@@ -157,8 +159,29 @@ class TranslationPipeline @Inject constructor(
         if (warmingFor != cfg.engineId) warmUp(cfg) else warming?.join()
     }
 
+    /**
+     * [cfg] with its series' glossary merged in and its notes composed ([TranslationNotes]: the characters' pronouns,
+     * the series' notes, then Settings' notes already in [cfg]). Read once per image, before the cache lookup, whose
+     * key carries them.
+     */
+    private suspend fun withSeries(cfg: TranslateConfig): TranslateConfig {
+        if (cfg.seriesKey.isEmpty()) return cfg.copy(notes = TranslationNotes.compose(emptyList(), "", cfg.notes))
+        val entries = glossary.entries(cfg.seriesKey)
+        return cfg.copy(
+            glossary = cfg.glossary + entries.filter { it.source.isNotBlank() }.associate { it.source to it.target },
+            notes = TranslationNotes.compose(entries, glossary.notes(cfg.seriesKey), cfg.notes),
+        )
+    }
+
+    /** A short digest of what the engine is told beyond the page, for the patch-cache key; "" when nothing. */
+    private fun seriesDigest(cfg: TranslateConfig): String {
+        if (cfg.glossary.isEmpty() && cfg.notes.isEmpty()) return ""
+        val text = cfg.glossary.entries.sortedBy { it.key }.joinToString("\n") { it.key + "\u0000" + it.value } + "\u0001" + cfg.notes
+        return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
+    }
+
     private suspend fun run(
-        source: ImageSource, cfg: TranslateConfig, imageId: String, priorContext: List<ContextPair>,
+        source: ImageSource, baseCfg: TranslateConfig, imageId: String, priorContext: List<ContextPair>,
         onStage: (Stage) -> Unit, onPatch: (Patch) -> Unit, started: Long,
         roi: RegionOfInterest? = null, bypassCache: Boolean = false,
     ): PageResult {
@@ -166,8 +189,9 @@ class TranslationPipeline @Inject constructor(
         onStage(Stage.CACHE)
         // Always a viewport snapshot: the reader's PixelCopy of the WebView, never a downloaded page.
         val native = (source as? ImageSource.Native)?.handle as? Bitmap ?: throw IllegalArgumentException("Unreadable image source")
+        val cfg = withSeries(baseCfg)
         val hash = nativeHash(native)
-        val cacheKey = patchCache.key(hash, cfg.src, cfg.tgt, cfg.engineId, PIPELINE_VERSION, cfg.fontId)
+        val cacheKey = patchCache.key(hash, cfg.src, cfg.tgt, cfg.engineId, PIPELINE_VERSION, cfg.fontId, seriesDigest(cfg))
         (if (bypassCache) null else patchCache.get(cacheKey))?.let { hit ->
             hit.patches.forEach(onPatch)
             onStage(Stage.DONE)
@@ -204,7 +228,10 @@ class TranslationPipeline @Inject constructor(
             val detected = gates.detect.withPermit {
                 coroutineContext.ensureActive()
                 // A viewport is a window onto a page: containers cut by its edge are partial and are dropped.
-                detectAll(src, cfg.src, dropEdgeCut = true, roi = roi, deferred = deferred, read = read)
+                detectAll(
+                    src, cfg.src, dropEdgeCut = true, roi = roi, deferred = deferred, read = read,
+                    keepUnreadable = cfg.sfxMode == SfxMode.REPLACE,
+                )
             }
             val regions = detected.filter { it.text.isNotBlank() && it.bbox.area >= 16 }.toMutableList()
             val detectedAt = elapsed(started)
@@ -214,7 +241,7 @@ class TranslationPipeline @Inject constructor(
             }
             for ((i, r) in regions.withIndex()) {
                 if (r.unread) crops[i] = readCrop(src, r.bbox)
-                else if (r.kind == RegionKind.SFX) crops[i] = sfxCrop(src, r.bbox)
+                else if (r.kind == RegionKind.SFX && !r.unreadable) crops[i] = sfxCrop(src, r.bbox)
             }
 
             // ---- translate + render --------------------------------------------------------------
@@ -231,7 +258,16 @@ class TranslationPipeline @Inject constructor(
                             val region = regions[i]
                             val text = translated[i]
                             dump?.region(i, region, null, text)
-                            if (text == null) continue
+                            if (text == null) {
+                                // A sound effect nothing could read: with Replace on, the original still goes.
+                                if (region.unreadable && cfg.sfxMode == SfxMode.REPLACE) {
+                                    val patch = renderer.eraseOnly(canvas, region, cfg, debug = dump?.let { d -> { s: String -> d.note(i, s) } }) ?: continue
+                                    dump?.patch(i, patch)
+                                    patches += patch
+                                    onPatch(patch)
+                                }
+                                continue
+                            }
                             val avoid = regions.filterIndexed { j, _ -> j != i }.flatMap { listOfNotNull(it.bbox, it.container) }
                             val patch = renderer.render(canvas, region, text, cfg, energy, avoid, debug = dump?.let { d -> { s: String -> d.note(i, s) } }) ?: continue
                             dump?.patch(i, patch)
@@ -274,7 +310,8 @@ class TranslationPipeline @Inject constructor(
      * The translate stage both entry points share. One engine call per image, except the on-device model: there a page
      * of bubbles is one long generation, so it runs in reading-order groups of [LOCAL_GROUP], each with its own
      * watchdog and the previous group's last lines as continuity context. [onGroup] runs as each group returns (the
-     * reader renders it at once). Unread regions are swapped in [regions] for what the engine read.
+     * reader renders it at once). Unread regions are swapped in [regions] for what the engine read. [cfg] is already
+     * resolved by [withSeries].
      */
     private suspend fun translateGroups(
         regions: MutableList<TextRegion>, crops: Map<Int, Bitmap>, cfg: TranslateConfig, priorContext: List<ContextPair>,
@@ -283,14 +320,12 @@ class TranslationPipeline @Inject constructor(
     ): GroupsOutcome {
         val groups = if (cfg.engineId.isLocalLlm && regions.size > LOCAL_GROUP)
             regions.indices.chunked(LOCAL_GROUP) else listOf(regions.indices.toList())
-        val seriesGlossary = if (cfg.seriesKey.isNotEmpty()) glossary.forSeries(cfg.seriesKey) else emptyMap()
-        val jobCfg = cfg.copy(glossary = cfg.glossary + seriesGlossary)
         val translated = arrayOfNulls<String>(regions.size)
         var context = priorContext
         var translateStart = -1L; var translateMs = 0L
         for (group in groups) {
             val groupCrops = group.withIndex().mapNotNull { (k, idx) -> crops[idx]?.let { k to it } }.toMap()
-            val job = TranslateJob("", jobCfg, group.map { regions[it] }, groupCrops, context)
+            val job = TranslateJob("", cfg, group.map { regions[it] }, groupCrops, context)
             // The stage flips, and the clock starts, only once this image holds a permit and the warm-up is over:
             // an image still queued has spent nothing, so Stop and engine changes may still cancel it.
             var groupStart = 0L
@@ -351,12 +386,12 @@ class TranslationPipeline @Inject constructor(
         try {
             for ((i, r) in work.withIndex()) {
                 if (r.unread) crops[i] = readCrop(src, r.bbox)
-                else if (r.kind == RegionKind.SFX) crops[i] = sfxCrop(src, r.bbox)
+                else if (r.kind == RegionKind.SFX && !r.unreadable) crops[i] = sfxCrop(src, r.bbox)
             }
             val started = System.currentTimeMillis()
             // A Studio run is a batch nobody watches page by page: a slow on-device model (the CPU on a small phone) may
             // take minutes for a group, which is still progress. The reader keeps its tight cap.
-            val out = translateGroups(work, crops, cfg, priorContext, started, onStage = {}, timeoutMs = STUDIO_TIMEOUT_MS) { _, _ -> }
+            val out = translateGroups(work, crops, withSeries(cfg), priorContext, started, onStage = {}, timeoutMs = STUDIO_TIMEOUT_MS) { _, _ -> }
             // Durations only (no text).
             android.util.Log.i(TAG, "studio ${cfg.engineId.name}: translate=${out.translateMs}ms regions=${work.size} groups=${out.groups}")
             StudioTranslation(work, out.translated.toList(), out.context)
@@ -435,6 +470,8 @@ class TranslationPipeline @Inject constructor(
     private suspend fun detectAll(
         src: PageSource, lang: Lang, dropEdgeCut: Boolean = false, roi: RegionOfInterest? = null,
         deferred: MutableList<IntRect>? = null, read: Boolean = true,
+        /** A sure free-text box nobody could read becomes a [TextLine.UNREADABLE] region (to be erased). */
+        keepUnreadable: Boolean = false,
     ): List<TextRegion> {
         val lines = ArrayList<TextLine>()
         val boxes = ArrayList<TextBox>()
@@ -480,19 +517,36 @@ class TranslationPipeline @Inject constructor(
                 !boxed && (l.bbox.top <= EDGE_PX + 2 * glyph || l.bbox.bottom >= src.height - EDGE_PX - 2 * glyph)
             }
         }
+        if (read && keepUnreadable) lines += unreadableLines(boxes, lines)
         android.util.Log.d(TAG, "detect: boxes=$found kept=${boxes.size} lines=${lines.size} deferred=${deferred?.size ?: 0}")
         return buildRegions(src, lang, lines, boxes)
     }
+
+    /**
+     * One [TextLine.UNREADABLE] line per free-text box the detector is sure of ([UNREADABLE_MIN_CONFIDENCE]) that no
+     * line was read in: brush-lettered sound effects ML Kit cannot read even in high contrast (저벅, 벌벌).
+     */
+    private fun unreadableLines(boxes: List<TextBox>, lines: List<TextLine>): List<TextLine> =
+        boxes.filter { b ->
+            b.kind == BoxKind.TEXT_FREE && b.confidence >= UNREADABLE_MIN_CONFIDENCE &&
+                lines.none { l -> b.bbox.contains(l.bbox.centerX.toInt(), l.bbox.centerY.toInt()) }
+        }.map { TextLine(bbox = it.bbox, text = TextLine.UNREADABLE) }
 
     /** Regions from lines and boxes in page pixels: one per detector box, clustered, classified, in reading order. */
     private fun buildRegions(src: PageSource, lang: Lang, lines: List<TextLine>, boxes: List<TextBox>): List<TextRegion> {
         val built = regionBuilder.build(PageDetection(lines, boxes), lang)
         val seeds = java.util.IdentityHashMap<TextRegion, com.smnexstudio.panelglass.core.ocr.BoxKind?>()
-        for (b in built) seeds[b.region] = b.seed
+        val boxed = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<TextRegion, Boolean>())
+        for (b in built) { seeds[b.region] = b.seed; if (b.boxed) boxed += b.region }
         // A region with no letters is a page number or bare punctuation ("139", "……", "!?"): nothing to translate, and
         // painting over it only hides the original.
         val regions = built.map { it.region }.filter { it.unread || it.text.any(Char::isLetter) }
+            // A lone character only ML Kit's full-page pass saw, outside every detector box, is not text to translate:
+            // a ✓ read as ソ came out as "So". Detected boxes (sound effects such as ド) are kept, single letter or not.
+            .filter { r -> r in boxed || r.unread || r.unreadable || r.text.count(Char::isLetter) >= 2 }
+        // What nothing could read is kept only as a sound effect to erase: never balloon text to letter.
         val classified = regions.map { RegionBuilder.seeded(classifier.classify(src, it), seeds[it]) }
+            .map { if (it.unreadable) it.copy(kind = RegionKind.SFX) else it }
         val panels = panelCutter.segment(src, lang.rtlReading)
         return panelCutter.orderRegions(classified, panels, lang.rtlReading)
     }
@@ -550,7 +604,9 @@ class TranslationPipeline @Inject constructor(
         }
 
         /** Bump whenever rendering changes so stale patches are not served from the disk cache. */
-        const val PIPELINE_VERSION = 9
+        const val PIPELINE_VERSION = 12
+        /** A free-text box below this detector score that nothing could read is not erased: it may not be text. */
+        private const val UNREADABLE_MIN_CONFIDENCE = 0.5f
         const val MIN_EDGE = 96
         /** Bubbles per on-device generation on a viewport: small enough that the first patches come early. */
         const val LOCAL_GROUP = 4

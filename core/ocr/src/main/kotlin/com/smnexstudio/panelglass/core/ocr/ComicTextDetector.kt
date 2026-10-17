@@ -43,6 +43,7 @@ class ComicTextDetector @Inject constructor(
     private val mlKit: MlKitTextDetector,
     private val mlKitCrops: MlKitCropRecognizer,
     private val mangaOcr: MangaOcrRecognizer,
+    private val missed: MissedTextDetector,
 ) : TextDetector {
 
     private val mutex = Mutex()
@@ -81,6 +82,7 @@ class ComicTextDetector @Inject constructor(
                 runCatching { extractedModel()?.let { OrtBench.run(it, File(m, "encoder_model.onnx").takeIf { f -> f.isFile }, File(m, "decoder_model.onnx").takeIf { f -> f.isFile }) } }
             }
             mutex.withLock { ensureSession() }
+            missed.warmUp()
             if (!recognizers) return@withContext
             mlKit.warmUp(lang)
             if (lang == Lang.JA) mangaOcr.warmUp()
@@ -95,12 +97,18 @@ class ComicTextDetector @Inject constructor(
         detectPage(bitmap, lang, skipRead, read = true)
 
     override suspend fun detectPage(bitmap: Bitmap, lang: Lang, skipRead: (TextBox) -> Boolean, read: Boolean): PageDetection = withContext(Dispatchers.Default) {
-        val boxes = mutex.withLock {
+        val primary = mutex.withLock {
             ensureSession()
             val s = session; val e = env
             if (s == null || e == null) emptyList()
             else runCatching { infer(bitmap, s, e) }.getOrElse { android.util.Log.w(TAG, "Detector failed: ${it::class.simpleName}"); emptyList() }
         }
+        // Second pass: text the comic detector missed (sound effects above all) joins as free-text boxes, so it is read,
+        // handed to an engine that reads crops, or — unreadable — erased when sound effects are replaced.
+        val missedStart = System.currentTimeMillis()
+        val extra = MissedTextDetector.outside(missed.detect(bitmap), primary, bitmap.width, bitmap.height)
+        val missedMs = System.currentTimeMillis() - missedStart
+        val boxes = primary + extra
         if (boxes.isEmpty()) return@withContext PageDetection(mlKit.detect(bitmap, lang))
 
         if (!read) {
@@ -110,7 +118,7 @@ class ComicTextDetector @Inject constructor(
             val lines = targets.map { t ->
                 TextLine(bbox = t.bbox, text = TextLine.UNREAD, vertical = lang.isCjk && lang != Lang.KO && t.bbox.height > t.bbox.width)
             }
-            android.util.Log.i(TAG, "boxes=${boxes.size} targets=${targets.size} unread (engine reads the crops)")
+            android.util.Log.i(TAG, "boxes=${boxes.size} (+${extra.size} missed in ${missedMs}ms) targets=${targets.size} unread (engine reads the crops)")
             return@withContext PageDetection(lines, boxes)
         }
 
@@ -149,7 +157,7 @@ class ComicTextDetector @Inject constructor(
         }
         android.util.Log.i(
             TAG, "boxes=${boxes.size} (bubble=${boxes.count { it.kind == BoxKind.BUBBLE }} text=${boxes.count { it.kind == BoxKind.TEXT_BUBBLE }} " +
-                "free=${boxes.count { it.kind == BoxKind.TEXT_FREE }}) read=${targets.size} lines=$fromCrops via ${if (recognizer === mangaOcr) "manga-ocr" else "mlkit"} " +
+                "free=${boxes.count { it.kind == BoxKind.TEXT_FREE }}, +${extra.size} missed in ${missedMs}ms) read=${targets.size} lines=$fromCrops via ${if (recognizer === mangaOcr) "manga-ocr" else "mlkit"} " +
                 "in ${ocrMs}ms +${lines.size - fromCrops} backstop",
         )
         PageDetection(lines, boxes)
@@ -226,7 +234,7 @@ class ComicTextDetector @Inject constructor(
 
     override fun close() {
         runCatching { session?.close() }; session = null; initialized = false
-        mlKit.close(); mangaOcr.close()
+        mlKit.close(); mangaOcr.close(); missed.close()
     }
 
     companion object {

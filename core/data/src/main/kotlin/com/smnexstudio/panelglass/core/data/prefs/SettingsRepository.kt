@@ -16,6 +16,7 @@ import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.QwenBackend
 import com.smnexstudio.panelglass.core.model.Settings
 import com.smnexstudio.panelglass.core.model.SfxMode
+import com.smnexstudio.panelglass.core.model.TranslationNotes
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -51,6 +52,10 @@ class SettingsRepository @Inject constructor(
         val fontFavourites = stringPreferencesKey("fontFavourites")
         val qwenBackend = stringPreferencesKey("qwenBackend")
         val automaticPacks = booleanPreferencesKey("automaticPacksDone")
+        val translationNotes = stringPreferencesKey("translationNotes")
+        val updateCheckedAt = longPreferencesKey("updateCheckedAt")
+        val skippedUpdate = stringPreferencesKey("skippedUpdate")
+        val autoUpdateCheck = booleanPreferencesKey("autoUpdateCheck")
         fun model(id: EngineId) = stringPreferencesKey("model_" + id.name)
         fun profile(id: EngineId, model: String) = stringPreferencesKey("profile_" + id.name + "_" + model)
     }
@@ -72,6 +77,8 @@ class SettingsRepository @Inject constructor(
             blockListUpdatedAt = p[K.blockListUpdatedAt] ?: d.blockListUpdatedAt,
             appTheme = p[K.theme]?.let { AppTheme.fromId(it) } ?: d.appTheme,
             qwenBackend = p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) } ?: d.qwenBackend,
+            translationNotes = p[K.translationNotes] ?: d.translationNotes,
+            autoUpdateCheck = p[K.autoUpdateCheck] ?: d.autoUpdateCheck,
         )
     }
 
@@ -86,6 +93,20 @@ class SettingsRepository @Inject constructor(
     suspend fun setBlockListUpdatedAt(v: Long) { dataStore.edit { it[K.blockListUpdatedAt] = v } }
     suspend fun setAppTheme(v: AppTheme) { dataStore.edit { it[K.theme] = v.id } }
     suspend fun setQwenBackend(v: QwenBackend) { dataStore.edit { it[K.qwenBackend] = v.name } }
+    /** When GitHub was last asked for a newer release (the daily check). */
+    suspend fun updateCheckedAt(): Long = dataStore.data.first()[K.updateCheckedAt] ?: 0L
+    suspend fun setUpdateCheckedAt(v: Long) { dataStore.edit { it[K.updateCheckedAt] = v } }
+
+    /** A version the user chose to skip: the daily check does not offer it again. */
+    suspend fun skippedUpdate(): String? = dataStore.data.first()[K.skippedUpdate]
+    suspend fun setSkippedUpdate(v: String) { dataStore.edit { it[K.skippedUpdate] = v } }
+    suspend fun setAutoUpdateCheck(v: Boolean) { dataStore.edit { it[K.autoUpdateCheck] = v } }
+
+    /** How the reader treats sound effects; read since the start, but nothing could set it before. */
+    suspend fun setSfxMode(v: SfxMode) { dataStore.edit { it[K.sfx] = v.name } }
+    suspend fun setTranslationNotes(v: String) {
+        dataStore.edit { it[K.translationNotes] = v.trim().take(TranslationNotes.MAX_CHARS) }
+    }
 
     /** The reader's "Translate page" target, an ML Kit language tag; English until the user picks another. */
     suspend fun pageTranslateTarget(): String = dataStore.data.first()[K.pageTarget] ?: "en"

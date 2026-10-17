@@ -27,6 +27,41 @@ class TextEraserTest {
         return Raster(w, h, IntArray(w * h) { Raster.rgb(rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)) })
     }
 
+    /**
+     * Seen on a phone (webtoon narration): light lettering in a thick black outline over dark art. Only the fill was
+     * masked, and the outline stayed as black smudges under the translation. The mask now reaches the outline.
+     */
+    @Test
+    fun outlinedLightLetteringLosesItsOutlineToo() {
+        val navy = Raster.rgb(20, 25, 45)
+        val crop = Raster.solid(320, 160, navy)
+        val bbox = IntRect(40, 40, 280, 120)
+        var x = bbox.left + 8
+        while (x < bbox.right - 20) {
+            fill(crop, IntRect(x - 6, bbox.top + 4, x + 12, bbox.bottom - 4), Raster.rgb(0, 0, 0))   // outline
+            fill(crop, IntRect(x, bbox.top + 10, x + 6, bbox.bottom - 10), Raster.rgb(235, 235, 240)) // fill
+            x += 30
+        }
+        val region = TextRegion(bbox = bbox, kind = RegionKind.FREE, text = "x", bgColor = navy, fgColor = Raster.rgb(235, 235, 240))
+        val result = eraser.erase(crop, IntRect(0, 0, 320, 160), region)
+        assertTrue(result.erased)
+        var black = 0; var light = 0
+        for (yy in 0 until 160) for (xx in 0 until 320) {
+            val l = Raster.lum(result.raster[xx, yy])
+            if (l < 12) black++
+            if (l > 200) light++
+        }
+        assertEquals(0, light, "fill left")
+        assertEquals(0, black, "outline left")
+    }
+
+    @Test
+    fun theReachGrowsWithTheGlyph() {
+        assertEquals(3, eraser.outlineReach(20f))
+        assertEquals(7, eraser.outlineReach(93f))
+        assertEquals(TextEraser.MAX_OUTLINE_PX, eraser.outlineReach(400f))
+    }
+
     @Test
     fun enclosedBubbleGlyphsAreFilledWithBackground() {
         val white = Raster.rgb(255, 255, 255)

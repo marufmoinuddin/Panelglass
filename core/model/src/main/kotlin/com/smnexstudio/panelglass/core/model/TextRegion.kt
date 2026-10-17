@@ -22,6 +22,12 @@ data class TextLine(
          * the crop itself (see [EngineId.readsCrops]). Non-blank so clustering, classification and ordering keep it.
          */
         const val UNREAD = "[unread]"
+
+        /**
+         * Text of a free-text box the detector is sure of but no recognizer could read (brush-lettered sound effects):
+         * never translated, only erased when the user asked for sound effects to be replaced.
+         */
+        const val UNREADABLE = "[unreadable]"
     }
 }
 
@@ -42,6 +48,9 @@ data class TextRegion(
 ) {
     /** Built from [TextLine.UNREAD] lines: the engine reads this region from its crop. */
     val unread: Boolean get() = TextLine.UNREAD in text
+
+    /** Built from a [TextLine.UNREADABLE] line: there is text here nothing could read; erase-only. */
+    val unreadable: Boolean get() = text == TextLine.UNREADABLE
 
     val fontSizePx: Float
         get() {

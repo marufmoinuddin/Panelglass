@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.smnexstudio.panelglass.core.model.GlossaryEntry
 import com.smnexstudio.panelglass.core.model.HistoryEntry
+import com.smnexstudio.panelglass.core.model.SeriesNotes
 import com.smnexstudio.panelglass.core.model.SfxCacheEntry
 import com.smnexstudio.panelglass.core.model.Site
 import kotlinx.coroutines.flow.Flow
@@ -65,6 +66,21 @@ interface GlossaryDao {
 
     @Delete
     suspend fun delete(entry: GlossaryEntry)
+}
+
+@Dao
+interface SeriesNotesDao {
+    @Query("SELECT notes FROM series_notes WHERE seriesKey = :seriesKey")
+    fun observe(seriesKey: String): Flow<String?>
+
+    @Query("SELECT notes FROM series_notes WHERE seriesKey = :seriesKey")
+    suspend fun get(seriesKey: String): String?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun put(notes: SeriesNotes)
+
+    @Query("DELETE FROM series_notes WHERE seriesKey = :seriesKey")
+    suspend fun delete(seriesKey: String)
 }
 
 const val HISTORY_LIMIT = 15

@@ -44,6 +44,34 @@ class RegionRenderer @Inject constructor(
     private val paints = ThreadLocal.withInitial { Paints() }
 
     /**
+     * Only erases [region]: a sound effect nothing could read ([TextRegion.unreadable]) when the user replaces sound
+     * effects. Null when the eraser refuses (art too busy to repaint): unlike text, nothing is drawn in its place, so
+     * a masking panel over the art would only be a blank box.
+     */
+    fun eraseOnly(page: PixelSource, region: TextRegion, cfg: TranslateConfig, debug: ((String) -> Unit)? = null): Patch? {
+        val pad = max(MASK_PAD * 4, (minOf(region.bbox.width, region.bbox.height) * 0.1f).toInt())
+        val cropRect = region.bbox.inflate(pad).clamp(page.width, page.height)
+        if (cropRect.isEmpty) return null
+        val crop = page.crop(cropRect)
+        val erase = eraser.erase(crop, cropRect, region)
+        debug?.invoke("eraseOnly crop=$cropRect erase=${erase.method} erased=${erase.erased}")
+        if (!erase.erased) return null
+        val pixels = IntArray(crop.width * crop.height)
+        var changed = 0
+        for (i in pixels.indices) if (erase.raster.argb[i] != crop.argb[i]) { pixels[i] = erase.raster.argb[i]; changed++ }
+        if (changed == 0) return null
+        val bmp = Bitmap.createBitmap(pixels, crop.width, crop.height, Bitmap.Config.ARGB_8888)
+        try {
+            val webp = encoder.encode(bmp, cfg.patchQuality)
+            return Patch(
+                xPct = cropRect.left * 100f / page.width, yPct = cropRect.top * 100f / page.height,
+                wPct = cropRect.width * 100f / page.width, hPct = cropRect.height * 100f / page.height,
+                webp = webp,
+            )
+        } finally { bmp.recycle() }
+    }
+
+    /**
      * @param energy Sobel energy map of the page at 1/8 scale, used only for FREE placement; null skips placement.
      */
     /**
@@ -84,6 +112,11 @@ class RegionRenderer @Inject constructor(
             target = t.clamp(page.width, page.height)
             cropRect = cropRect.union(target.inflate(pad)).clamp(page.width, page.height)
         }
+        // The erase covers the whole balloon, not only the text box: a line the reading left out ("……" above the
+        // dialogue) is lettering too and stayed on the page next to the translation. The balloon's outline is kept
+        // (it touches the outside, see TextEraser); joined balloons, far wider than the text, are not taken whole.
+        val ownBalloon = region.container?.takeIf { region.kind == RegionKind.ENCLOSED && it.width <= region.bbox.width * BALLOON_MAX_WIDTH_X }
+        if (ownBalloon != null) cropRect = cropRect.union(ownBalloon.inflate(pad)).clamp(page.width, page.height)
         if ((region.kind == RegionKind.FREE) && energy != null) {
             target = FreeTextPlacer.place(energy, ENERGY_SCALE, region.bbox, region.fontSizePx.toInt(), page.width, page.height)
             cropRect = cropRect.union(target.inflate(pad)).clamp(page.width, page.height)

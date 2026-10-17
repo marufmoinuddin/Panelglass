@@ -7,10 +7,12 @@ step described in [FLOW.md](FLOW.md). Source: `core/ocr` and the detection part 
 
 - [Overview](#overview)
 - [Comic text and bubble detector](#comic-text-and-bubble-detector)
+- [Second pass: text the comic detector missed](#second-pass-text-the-comic-detector-missed)
 - [Filtering before reading](#filtering-before-reading)
 - [Recognition targets](#recognition-targets)
 - [Recognizers](#recognizers)
 - [The recall backstop](#the-recall-backstop)
+- [Text nothing could read](#text-nothing-could-read)
 - [Gemini reading mode](#gemini-reading-mode)
 - [From lines to regions](#from-lines-to-regions)
 - [Region classification](#region-classification)
@@ -19,13 +21,16 @@ step described in [FLOW.md](FLOW.md). Source: `core/ocr` and the detection part 
 
 ## Overview
 
-Detection is two-tier. A comic-specific detector finds the **containers** (balloons and text areas). A recognizer
-then reads **each container crop**, and a full-page ML Kit pass catches text the detector missed.
+Detection is two-tier. A comic-specific detector finds the **containers** (balloons and text areas); a second,
+general text detector adds what it missed (mostly sound effects). A recognizer then reads **each container crop**,
+and a full-page ML Kit pass catches what both detectors missed.
 
 ```mermaid
 flowchart LR
     S[Snapshot<br/>≤1600 px] --> D[RT-DETR-v2 detector<br/>640×640]
+    S --> D2[PP-OCRv6 tiny<br/>second pass]
     D --> B[Boxes: bubble ·<br/>text_bubble · text_free]
+    D2 -->|outside every comic box| B
     B --> F[ROI / edge / done filters]
     F --> T[Recognition targets]
     T -->|JA + manga-ocr installed| M[manga-ocr]
@@ -61,6 +66,26 @@ Post-processing (the model is anchor-free and needs no NMS):
 The snapshot is first downscaled so its long side is at most **1600 px** (`ImageDecoder.forDetection`); boxes are
 mapped back by the inverse scale. The ONNX file is copied once from assets to `filesDir/models/`, because ONNX
 Runtime opens models by path, and it is pinned by its exact size. One session is shared behind a mutex.
+
+## Second pass: text the comic detector missed
+
+The comic detector is trained on balloons and comic lettering; it misses most brush-lettered Korean sound effects.
+On phone screenshots of two webtoon chapters it boxed 1 of 8 effects, where PP-OCRv6 tiny boxed 7 (CRAFT boxed all 8
+but took 4–20× longer and is 45× larger). So every page runs both.
+
+`MissedTextDetector` runs [PP-OCRv6 tiny det](https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_det_onnx)
+(PaddlePaddle, Apache-2.0, 1.8 MB official ONNX, bundled as `ppocrv6-tiny-det.onnx`; revision and SHA-256 in NOTICE):
+
+| | |
+|---|---|
+| Input | 1×3×H×W float: the page resized so its long side is ≤ 960 px and both sides are multiples of 32; BGR planes normalised with ImageNet mean and std (PaddleOCR's preprocessing on an OpenCV image) |
+| Output | 1×1×H×W text probability |
+| Post-processing (`DbPostProcess`) | Pixels over 0.3 in 4-connected components, kept when their mean probability reaches 0.6, each grown by `area × 1.5 / perimeter` (PaddleOCR's unclip), as axis-aligned boxes; neighbours closer than half their short side merge into one block (타 + 닥 → 타닥) |
+| Kept | Boxes whose centre is outside every comic-detector box and which are less than 30% covered by one, at least 2% of the page width on their short side (tiny print drawn into the art is not lettering), and under half the page |
+
+They join the comic detector's boxes as `text_free` and go through the same filters and recognizers. The model has no
+balloon class, so it complements the comic detector and never replaces it. On the Motorola Edge 60 Pro the pass takes
+about 350 ms per screen (590 ms at most); it is loaded with the reader's pre-warm.
 
 ## Filtering before reading
 
@@ -103,6 +128,9 @@ BERT-style decoder (~140 MB, fp32), verified by SHA-256 on download.
 
 - **Scaling** (`CropScalePlan`): ML Kit reads CJK best well above ~24 px glyphs, so small crops are enlarged (up to 3×)
   until the short side reaches 1200 px, and large crops are shrunk so the long side stays under 3000 px.
+- **High-contrast retry** for any language: a crop that reads as no letters at all is read once more as black ink on
+  white (`HighContrast`: Otsu on luminance, the smaller class is the ink, so light lettering on dark art is
+  inverted). White or coloured narration on dark art and outlined lettering are often only read this way.
 - **Rotated "shadow" pass** for Japanese: when the upright reading of a tall crop is weak (nothing, or scattered
   one- and two-character fragments, which is how ML Kit fails on vertical text), the crop is read again rotated ±90°
   so each column becomes a row. The reading with the most CJK characters wins; rotated results are mapped back and
@@ -116,6 +144,16 @@ BERT-style decoder (~140 MB, fp32), verified by SHA-256 on download.
 In parallel with the crops, ML Kit reads the **whole snapshot**. A backstop line is kept only if its centre lies in no
 detector box and it overlaps every box by less than 35%. This recovers text the detector missed without duplicating
 text it found.
+
+A backstop region of a **single letter** is dropped (`BuiltRegion.boxed` is false for it): a lone character outside
+every detector box is almost never lettering. The reader's status disc is also outside the region of interest, since
+the snapshot includes it.
+
+## Text nothing could read
+
+A `text_free` box the detectors are sure of (score ≥ 0.5) with no line read in it becomes a `TextLine.UNREADABLE`
+region of kind SFX, when SFX mode is Replace. It is never sent to an engine; the renderer only erases it
+(`RegionRenderer.eraseOnly`), and leaves it alone when the eraser refuses (art too busy to repaint).
 
 ## Gemini reading mode
 
@@ -171,7 +209,7 @@ On-device engines receive bubbles in this order, in groups of 4.
 
 - **ONNX Runtime options.** Both models share `OrtCpu.options` (ORT 1.22, CPU/MLAS). XNNPACK is available but off: it
   was slower on the x86 emulator for both models. To measure on a phone:
-  `adb shell run-as com.smnexstudio.panelglass touch files/debug-ortbench`, open the reader, then
+  `adb shell run-as com.smnexstudio.panelglass.debug touch files/debug-ortbench`, open the reader, then
   `adb logcat -s OrtBench` for median timings per option set. Remove the file afterwards.
 - **What a run saw.** The debug dump (see [FLOW.md](FLOW.md#diagnostics)) lists every region's kind, box, text and
   erase method next to the snapshot.

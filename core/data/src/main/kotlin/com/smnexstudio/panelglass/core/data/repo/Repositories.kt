@@ -3,8 +3,10 @@ package com.smnexstudio.panelglass.core.data.repo
 import com.smnexstudio.panelglass.core.data.db.PanelglassDb
 import com.smnexstudio.panelglass.core.model.GlossaryEntry
 import com.smnexstudio.panelglass.core.model.HistoryEntry
+import com.smnexstudio.panelglass.core.model.SeriesNotes
 import com.smnexstudio.panelglass.core.model.SfxCacheEntry
 import com.smnexstudio.panelglass.core.model.Site
+import com.smnexstudio.panelglass.core.model.TranslationNotes
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,13 +42,23 @@ class SfxCacheRepository @Inject constructor(private val db: PanelglassDb) {
     suspend fun clear() = db.sfxCache().clear()
 }
 
+/** A series' names and terms (each maybe with a character's pronoun) and the user's notes for it. */
 @Singleton
 class GlossaryRepository @Inject constructor(private val db: PanelglassDb) {
     fun observe(seriesKey: String): Flow<List<GlossaryEntry>> = db.glossary().observe(seriesKey)
     suspend fun forSeries(seriesKey: String): Map<String, String> =
         db.glossary().forSeries(seriesKey).associate { it.source to it.target }
+    suspend fun entries(seriesKey: String): List<GlossaryEntry> = db.glossary().forSeries(seriesKey)
     suspend fun upsert(entry: GlossaryEntry) = db.glossary().upsert(entry)
     suspend fun delete(entry: GlossaryEntry) = db.glossary().delete(entry)
+
+    fun observeNotes(seriesKey: String): Flow<String?> = db.seriesNotes().observe(seriesKey)
+    suspend fun notes(seriesKey: String): String = db.seriesNotes().get(seriesKey).orEmpty()
+    /** Blank notes remove the row. */
+    suspend fun setNotes(seriesKey: String, notes: String) {
+        val text = notes.trim().take(TranslationNotes.MAX_CHARS)
+        if (text.isEmpty()) db.seriesNotes().delete(seriesKey) else db.seriesNotes().put(SeriesNotes(seriesKey, text))
+    }
 }
 
 @Singleton

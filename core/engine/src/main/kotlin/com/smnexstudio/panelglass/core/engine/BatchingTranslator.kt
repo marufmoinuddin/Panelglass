@@ -71,6 +71,8 @@ class BatchingTranslator @Inject constructor(
         val item: RegionItem, val crop: Bitmap?, val src: Lang, val tgt: Lang, val glossary: Map<String, String>, val context: List<ContextPair>,
         /** The engine reads [crop] itself; [item] has no text. */
         val read: Boolean = false,
+        /** The user's notes for this series ([TranslateConfig.notes]); items with other notes never share a call. */
+        val notes: String = "",
     ) {
         val result = CompletableDeferred<Reading>()
         /** Set when the caller stopped waiting; the batch it was flushed into is cancelled once every member is. */
@@ -105,11 +107,12 @@ class BatchingTranslator @Inject constructor(
         val cached = sfxCache.lookup(sfxKeys.map { SfxCacheEntry.keyOf(it.second, cfg.src, cfg.tgt) }.toSet())
         val local = HashMap<String, Pending>()
         for ((i, region) in job.regions.withIndex()) {
-            if (region.text.isBlank()) continue
+            // Nothing could read an unreadable region: it is erased, never sent.
+            if (region.text.isBlank() || region.unreadable) continue
             if (region.unread) {
                 // Nothing to look up or de-duplicate: every unread region has the same placeholder text.
                 val crop = job.crops[i] ?: continue
-                pending += i to Pending(RegionItem(0, job.imageId, region.kind, ""), crop, cfg.src, cfg.tgt, cfg.glossary, job.priorContext, read = true)
+                pending += i to Pending(RegionItem(0, job.imageId, region.kind, ""), crop, cfg.src, cfg.tgt, cfg.glossary, job.priorContext, read = true, notes = cfg.notes)
                 continue
             }
             if (region.kind == RegionKind.SFX) {
@@ -120,7 +123,7 @@ class BatchingTranslator @Inject constructor(
             }
             val dedupeKey = region.kind.name + "|" + (if (region.kind == RegionKind.SFX) TextNorm.sfxKey(region.text) else region.text.trim())
             val p = local.getOrPut(dedupeKey) {
-                Pending(RegionItem(0, job.imageId, region.kind, region.text.trim()), job.crops[i], cfg.src, cfg.tgt, cfg.glossary, job.priorContext)
+                Pending(RegionItem(0, job.imageId, region.kind, region.text.trim()), job.crops[i], cfg.src, cfg.tgt, cfg.glossary, job.priorContext, notes = cfg.notes)
             }
             pending += i to p
         }
@@ -147,9 +150,12 @@ class BatchingTranslator @Inject constructor(
         return out.toList()
     }
 
+    /** One lane per engine, language pair and notes: a call carries one set of notes. */
+    private fun laneKey(engineId: EngineId, first: Pending) =
+        engineId.name + "|" + first.src.code + "|" + first.tgt.code + "|" + first.notes.hashCode()
+
     private suspend fun enqueue(engineId: EngineId, items: List<Pending>) {
-        val first = items.first()
-        val laneKey = engineId.name + "|" + first.src.code + "|" + first.tgt.code
+        val laneKey = laneKey(engineId, items.first())
         lock.withLock {
             val lane = lanes.getOrPut(laneKey) { Lane(engineId) }
             lane.items += items
@@ -177,8 +183,7 @@ class BatchingTranslator @Inject constructor(
 
     /** The caller went away: unsent items leave the lane, and a running batch with no waiter left is cancelled. */
     private suspend fun withdraw(engineId: EngineId, items: List<Pending>) {
-        val first = items.first()
-        val laneKey = engineId.name + "|" + first.src.code + "|" + first.tgt.code
+        val laneKey = laneKey(engineId, items.first())
         lock.withLock {
             lanes[laneKey]?.let { lane ->
                 lane.items.removeAll(items.toSet())
@@ -213,7 +218,7 @@ class BatchingTranslator @Inject constructor(
                 montageIdx = crops.map { it.index }
             }
         }
-        val req = TranslateRequest(items, src, tgt, glossary, context, montage, montageIdx, readImages)
+        val req = TranslateRequest(items, src, tgt, glossary, context, montage, montageIdx, readImages, batch.first().notes)
 
         var attempt = 0
         while (true) {

@@ -104,12 +104,13 @@ class BatchingTranslatorTest {
     fun onDeviceModelGetsOneImagePerCall() = runBlocking {
         val runner = EchoRunner()
         qwen.runnerFactory = { runner }
-        val a = async { translator.translate(job("A", "甲", "乙")) }
-        val b = async { translator.translate(job("B", "丙")) }
-        assertEquals(listOf("T:甲", "T:乙"), a.await())
-        assertEquals(listOf("T:丙"), b.await())
+        // Latin stand-ins: the echo runner's "translations" must not carry CJK, which an English line now may not hold.
+        val a = async { translator.translate(job("A", "kou", "otsu")) }
+        val b = async { translator.translate(job("B", "hei")) }
+        assertEquals(listOf("T:kou", "T:otsu"), a.await())
+        assertEquals(listOf("T:hei"), b.await())
         assertEquals(2, runner.prompts.size)
-        assertTrue(runner.prompts.none { it.contains("甲") && it.contains("丙") })
+        assertTrue(runner.prompts.none { it.contains("kou") && it.contains("hei") })
     }
 
     @Test
