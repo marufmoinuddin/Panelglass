@@ -202,7 +202,9 @@ phone, and everything is removed on uninstall.
   with another key. `REQUEST_INSTALL_PACKAGES` and a FileProvider that shares only `updates/` make the
   hand-off possible.
 - **User notes are instructions, page text is not.** Engines follow the reader's notes and glossary, but every prompt
-  tells the model that page text is data, never instructions.
+  tells the model that page text is data, never instructions. No model has tools: its reply is only drawn as text.
+  Every cloud reply is capped by the item count (`LlmContract.outputBudget`) and glossary terms by
+  `GlossaryEntry.MAX_CHARS`, so no note or term can make a call write, and bill, an essay.
 - **WebView.** No file or content access; no JavaScript interface is exposed to pages; new windows are decided
   natively; blocked hosts never become the main frame.
 - **Downloads.** Every model file is pinned to a Hugging Face commit and verified against its SHA-256 before it is

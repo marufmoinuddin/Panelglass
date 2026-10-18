@@ -96,7 +96,19 @@ data class GlossaryEntry(
     val source: String,
     val target: String,
     val pronoun: Pronoun? = null,
-)
+) {
+    /** This entry with both sides trimmed and cut to [MAX_CHARS]. */
+    fun capped(): GlossaryEntry = copy(source = source.trim().take(MAX_CHARS), target = target.trim().take(MAX_CHARS))
+
+    companion object {
+        /**
+         * Longest source or rendering, in characters. Every term goes into every prompt of its series: a name or a
+         * phrase is well under this, and a pasted paragraph would crowd out the on-device models' 4096-token budget
+         * and raise a cloud engine's bill on every call.
+         */
+        const val MAX_CHARS = 60
+    }
+}
 
 /** How a character is referred to. [prompt] is the engines' wording (English, as every prompt is). */
 enum class Pronoun(val prompt: String) {

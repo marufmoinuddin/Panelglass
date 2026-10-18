@@ -14,14 +14,10 @@ workflow publishes the version's section as the GitHub Release notes.
   names and terms.
 - **Translation notes** in Settings: instructions for the AI engines on every series (tone, honorifics, how to treat
   missing subjects).
-- **Sound effects** setting: Keep, Gloss, Overlay or Replace the original effects in the reader.
-- **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector
-  missed; with Replace, effects nothing can read are still erased.
-- **In-app updates**: a newer release is offered once a day (Update, Skip this version, Later), downloaded, checked
-  against its SHA-256 and installed; Settings › About › Check for updates checks on demand, and *Check
-  automatically* turns the daily check off. A downloaded update is deleted once it is installed.
+- **Sound effects** setting: Keep or Replace (the default) the original effects in the reader.
+- **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector missed; with Replace, effects nothing can read are still erased.
+- **In-app updates**: a newer release is offered once a day (Update or Later), downloaded
 - More Japanese and Korean sound effects in the built-in dictionary; hiragana and katakana spellings, and an extra
-  ッ or ー, now find the same entry.
 
 ### Changed
 
@@ -29,17 +25,7 @@ workflow publishes the version's section as the GitHub Release notes.
   the site has its own.
 - Text that reads as nothing is read again in high contrast, which finds narration on dark art and outlined lettering.
 - Editing a glossary or notes translates pages again instead of showing cached ones.
-- Debug builds install beside the release app as "Panelglass Debug".
-
-### Fixed
-
-- On-device models no longer leave the original language in a translation: a repeated source line is cut, and a line
-  that switches script mid-sentence is translated again.
-- The leading "……" of a speech balloon is erased with the rest of it.
-- Outlined lettering no longer leaves dark smudges after it is erased.
-- The reader no longer translates its own status badge (a "So" appeared under the ✓).
-- Two series saved as separate sites on the same website keep separate glossaries.
-- In rare cases, two series translated at the same moment could be sent with each other's notes.
+- Debug builds install beside the release app as "Panelglass Debug", help to have release version and debug version(developement) side by side.
 
 ## [0.2.0] - 2026-10-02
 
@@ -54,7 +40,7 @@ workflow publishes the version's section as the GitHub Release notes.
   - **Clean and restyle**: the original text is removed and the translation lettered inside each balloon's traced
     shape. Set font, size, colour, outline, fill, border and rounded corners per bubble or page; reshape bubbles and
     brush out leftovers. Optional **LaMa** cleanup (208 MB) rebuilds artwork under text.
-  - **Sound effects**: keep, gloss, overlay or replace, with presets, and move, turn, stretch or bend them.
+  - **Sound effects**: keep or replace, with presets, and move, turn, stretch or bend them.
   - **Fonts**: 21 bundled fonts with a default for every target language, plus your own `.ttf` / `.otf` / `.ttc`.
   - **Export** a chapter or a whole manga as images, CBZ or ZIP (with ComicInfo.xml) to Download/Panelglass or a
     folder you pick.

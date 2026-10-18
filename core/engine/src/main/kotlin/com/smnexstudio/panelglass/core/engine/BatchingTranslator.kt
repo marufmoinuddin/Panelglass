@@ -45,6 +45,11 @@ class TranslateJob(
     val regions: List<TextRegion>,
     val crops: Map<Int, Bitmap> = emptyMap(),
     val priorContext: List<ContextPair> = emptyList(),
+    /**
+     * Send without waiting [BatchingTranslator.WINDOW_MS] for other images to share the call: someone is watching this
+     * one (the reader's viewport, a Studio page), and nothing else is coming to join it.
+     */
+    val immediate: Boolean = false,
 )
 
 /** A region's translation, and what the engine read when the region was [TextRegion.unread]. */
@@ -133,7 +138,7 @@ class BatchingTranslator @Inject constructor(
         if (pending.isEmpty()) return out.toList()
 
         val mine = pending.map { it.second }.distinct()
-        enqueue(cfg.engineId, mine)
+        enqueue(cfg.engineId, mine, job.immediate)
         try {
             for ((i, p) in pending) out[i] = p.result.await()
         } catch (e: CancellationException) {
@@ -156,18 +161,24 @@ class BatchingTranslator @Inject constructor(
     /** One lane per engine, language pair and notes: a call carries one set of notes. */
     private fun laneKey(engineId: EngineId, first: Pending) = LaneKey(engineId, first.src, first.tgt, first.notes)
 
-    private suspend fun enqueue(engineId: EngineId, items: List<Pending>) {
+    private suspend fun enqueue(engineId: EngineId, items: List<Pending>, immediate: Boolean) {
         val laneKey = laneKey(engineId, items.first())
         lock.withLock {
             val lane = lanes.getOrPut(laneKey) { Lane(engineId) }
             lane.items += items
             val images = lane.items.map { it.item.imageId }.toSet().size
-            if (lane.items.size >= MAX_ITEMS || images >= imagesPerCall(engineId)) {
-                flushLocked(laneKey, lane)
-            } else if (lane.flushJob == null) {
-                lane.flushJob = scope.launch {
-                    delay(WINDOW_MS)
-                    lock.withLock { lanes[laneKey]?.let { if (it.items.isNotEmpty()) flushLocked(laneKey, it) } }
+            // A call carries at most MAX_ITEMS: everything that must go now goes in as many calls as it takes. Before,
+            // one call went and the rest waited for a timer that had just been cancelled (a page of over 60 regions
+            // hung until the watchdog).
+            if (immediate || images >= imagesPerCall(engineId)) {
+                while (lane.items.isNotEmpty()) flushLocked(laneKey, lane)
+            } else {
+                while (lane.items.size >= MAX_ITEMS) flushLocked(laneKey, lane)
+                if (lane.items.isNotEmpty() && lane.flushJob == null) {
+                    lane.flushJob = scope.launch {
+                        delay(WINDOW_MS)
+                        lock.withLock { lanes[laneKey]?.let { while (it.items.isNotEmpty()) flushLocked(laneKey, it) } }
+                    }
                 }
             }
         }

@@ -450,12 +450,8 @@
     </plurals>
     <string name="studio_sfx_title">Hiệu ứng âm thanh</string>
     <string name="studio_sfx_keep">Giữ</string>
-    <string name="studio_sfx_gloss">Chú giải</string>
-    <string name="studio_sfx_overlay">Đè lên</string>
     <string name="studio_sfx_replace">Thay thế</string>
     <string name="studio_sfx_keep_note">Hiệu ứng gốc được giữ nguyên.</string>
-    <string name="studio_sfx_gloss_note">Một bản dịch nhỏ bên cạnh hiệu ứng gốc.</string>
-    <string name="studio_sfx_overlay_note">Bản dịch được vẽ đè lên bản gốc. Trên trang: kéo để di chuyển, tay nắm trên để xoay, góc để đổi cỡ.</string>
     <string name="studio_sfx_replace_note">Bản gốc bị xóa và bản dịch được vẽ vào chỗ đó. Trên trang: kéo để di chuyển, tay nắm trên để xoay, góc để đổi cỡ.</string>
     <string name="studio_sfx_presets">Bắt đầu từ</string>
     <string name="studio_sfx_preset_impact">Va chạm</string>
@@ -632,7 +628,6 @@
     <string name="update_available_title">Có bản cập nhật</string>
     <string name="update_available_message">Đã có Panelglass %1$s. Bạn đang dùng %2$s.</string>
     <string name="update_action">Cập nhật</string>
-    <string name="update_skip">Bỏ qua phiên bản này</string>
     <string name="update_later">Để sau</string>
     <string name="update_downloading">Đang tải bản cập nhật…</string>
     <string name="update_progress">%1$s / %2$s</string>

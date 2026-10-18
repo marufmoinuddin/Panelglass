@@ -145,8 +145,9 @@ data class BubbleStyle(
     val cornerRoundness: Float = 0f,
 )
 
+/** A Studio effect: left as drawn, or erased and redrawn ([SfxMode]); a saved GLOSS reads back as [REPLACE]. */
 @Serializable
-enum class SfxEditMode { KEEP, GLOSS, OVERLAY, REPLACE }
+enum class SfxEditMode { KEEP, REPLACE }
 
 /** Where and how a replacement sound effect is drawn, in page pixels. */
 @Serializable
@@ -163,7 +164,7 @@ data class SfxTransform(
 
 @Serializable
 data class SfxEdit(
-    val mode: SfxEditMode = SfxEditMode.OVERLAY,
+    val mode: SfxEditMode = SfxEditMode.REPLACE,
     val text: String = "",
     val transform: SfxTransform,
     val style: BubbleStyle = BubbleStyle(),

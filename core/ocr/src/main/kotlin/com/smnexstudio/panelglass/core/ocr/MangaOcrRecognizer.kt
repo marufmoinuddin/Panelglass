@@ -78,7 +78,7 @@ class MangaOcrRecognizer @Inject constructor(private val store: MangaOcrStore) :
 
     override suspend fun recognize(crop: Bitmap, lang: Lang): List<TextLine> = withContext(Dispatchers.Default) {
         if (!isAvailable || crop.width < 2 || crop.height < 2) return@withContext emptyList()
-        val text = mutex.withLock {
+        val (text, confidence) = mutex.withLock {
             ensureLoaded()
             read(preprocess(crop), MAX_TOKENS)
         }
@@ -86,34 +86,43 @@ class MangaOcrRecognizer @Inject constructor(private val store: MangaOcrStore) :
         // One reading for the whole box: glyph size follows from area per character (columns × rows ≈ chars).
         val chars = text.count { !it.isWhitespace() }.coerceAtLeast(1)
         val glyph = kotlin.math.sqrt(crop.width.toFloat() * crop.height / chars).coerceIn(8f, minOf(crop.width, crop.height).toFloat())
-        listOf(TextLine(bbox = IntRect(0, 0, crop.width, crop.height), text = text, vertical = crop.height > crop.width, confidence = 1f, fontSizePx = glyph))
+        listOf(TextLine(bbox = IntRect(0, 0, crop.width, crop.height), text = text, vertical = crop.height > crop.width, confidence = confidence, fontSizePx = glyph))
     }
 
-    /** Encoder once, then greedy decoding for at most [maxSteps] tokens. Caller holds [mutex] with the sessions loaded. */
-    private suspend fun read(pixels: java.nio.FloatBuffer, maxSteps: Int): String {
+    /**
+     * Encoder once, then greedy decoding for at most [maxSteps] tokens. Caller holds [mutex] with the sessions loaded.
+     *
+     * Returns the text and the model's confidence in it: the geometric mean of each chosen token's probability (the
+     * closing `[SEP]` included). manga-ocr writes Japanese for any crop; on speed lines, art and small print it invents
+     * a reading and is unsure of it ([TextLine.confidence]; [ComicTextDetector.MIN_FREE_CONFIDENCE]).
+     */
+    private suspend fun read(pixels: java.nio.FloatBuffer, maxSteps: Int): Pair<String, Float> {
         val e = env!!; val enc = encoder!!; val dec = decoder!!
         val ids = IntArray(maxSteps + 1); ids[0] = CLS_ID; var len = 1
+        var logProb = 0.0; var tokens = 0
         OnnxTensor.createTensor(e, pixels, longArrayOf(1, 3, IMG.toLong(), IMG.toLong())).use { pv ->
             enc.run(mapOf("pixel_values" to pv)).use { encOut ->
                 // The encoder's output tensor goes straight back in as the decoder's input: no copy through the JVM heap.
                 val hs = encOut.get(0) as OnnxTensor
                 while (len <= maxSteps) {
                     coroutineContext.ensureActive()
-                    val next = step(e, dec, hs, ids, len)
+                    val (next, p) = step(e, dec, hs, ids, len)
+                    logProb += kotlin.math.ln(p.coerceAtLeast(1e-9)); tokens++
                     if (next == SEP_ID) break
                     ids[len++] = next
                 }
             }
         }
-        return collapseRepeats(decode(ids, 1, len), truncated = len > maxSteps)
+        val confidence = if (tokens == 0) 0f else kotlin.math.exp(logProb / tokens).toFloat()
+        return collapseRepeats(decode(ids, 1, len), truncated = len > maxSteps) to confidence
     }
 
     /**
-     * One decoder call over the whole prefix; the argmax of the last position is the next token. Only that row is
-     * read, straight from the native buffer: materialising the full `[1, len, vocab]` logits as nested Java arrays
-     * every step made decoding quadratic in copies.
+     * One decoder call over the whole prefix; the argmax of the last position is the next token, returned with its
+     * softmax probability. Only that row is read, straight from the native buffer: materialising the full
+     * `[1, len, vocab]` logits as nested Java arrays every step made decoding quadratic in copies.
      */
-    private fun step(e: OrtEnvironment, dec: OrtSession, hidden: OnnxTensor, ids: IntArray, len: Int): Int {
+    private fun step(e: OrtEnvironment, dec: OrtSession, hidden: OnnxTensor, ids: IntArray, len: Int): Pair<Int, Double> {
         val buf = LongBuffer.allocate(len)
         for (i in 0 until len) buf.put(ids[i].toLong())
         buf.rewind()
@@ -127,7 +136,9 @@ class MangaOcrRecognizer @Inject constructor(private val store: MangaOcrStore) :
                 val base = (rows - 1) * vocabSize
                 var best = 0; var bestV = Float.NEGATIVE_INFINITY
                 for (i in 0 until vocabSize) { val v = fb.get(base + i); if (v > bestV) { bestV = v; best = i } }
-                return best
+                var sum = 0.0
+                for (i in 0 until vocabSize) sum += kotlin.math.exp((fb.get(base + i) - bestV).toDouble())
+                return best to 1.0 / sum
             }
         }
     }

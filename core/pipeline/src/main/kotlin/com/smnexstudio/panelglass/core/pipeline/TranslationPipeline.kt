@@ -29,10 +29,13 @@ import com.smnexstudio.panelglass.core.ocr.raster.Gray
 import com.smnexstudio.panelglass.core.render.RegionRenderer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -98,6 +101,8 @@ class TranslationPipeline @Inject constructor(
     private val gates: StageGates,
 ) {
     private val detection = DetectionStage(detector)
+    /** Patch-cache writes: they encode every patch's WEBP, which nothing on screen waits for. */
+    private val cacheWrites = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val series = SeriesResolver(glossary)
 
     suspend fun translate(
@@ -255,7 +260,9 @@ class TranslationPipeline @Inject constructor(
             val groups = outcome.groups
 
             return withContext(NonCancellable) {
-                patchCache.put(cacheKey, CachedPage(width, height, regions.size, patches))
+                // Every patch is on screen already; encoding them for the cache happens after this image is done.
+                val page = CachedPage(width, height, regions.size, patches.toList())
+                cacheWrites.launch { runCatching { patchCache.put(cacheKey, page) } }
                 onStage(Stage.DONE)
                 // Durations only (no text, no URLs): where a slow page spent its time.
                 android.util.Log.i(
@@ -296,7 +303,7 @@ class TranslationPipeline @Inject constructor(
         var translateStart = -1L; var translateMs = 0L
         for (group in groups) {
             val groupCrops = group.withIndex().mapNotNull { (k, idx) -> crops[idx]?.let { k to it } }.toMap()
-            val job = TranslateJob("", cfg, group.map { regions[it] }, groupCrops, context)
+            val job = TranslateJob("", cfg, group.map { regions[it] }, groupCrops, context, immediate = true)
             // The stage flips, and the clock starts, only once this image holds a permit and the warm-up is over:
             // an image still queued has spent nothing, so Stop and engine changes may still cancel it.
             var groupStart = 0L
@@ -456,7 +463,7 @@ class TranslationPipeline @Inject constructor(
         }
 
         /** Bump whenever rendering changes so stale patches are not served from the disk cache. */
-        const val PIPELINE_VERSION = 12
+        const val PIPELINE_VERSION = 15
         const val MIN_EDGE = 96
         /** Bubbles per on-device generation on a viewport: small enough that the first patches come early. */
         const val LOCAL_GROUP = 4

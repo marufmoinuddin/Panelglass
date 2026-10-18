@@ -53,8 +53,8 @@ A wrong source language is the most damaging mistake: Korean read with the Japan
 
 Open a chapter, then **⋮ › Glossary & pronouns**.
 
-- **Names and terms.** Add a name or term as written on the page and how it should read in your language. Every
-  engine uses these: the AI engines are told, Google Translate substitutes them.
+- **Names and terms.** Add a name or term as written on the page and how it should read in your language (60
+  characters each). Every engine uses these: the AI engines are told, Google Translate substitutes them.
 - **Pronoun.** Give a character *He*, *She* or *They*. Japanese and Korean often leave the subject out, and a model
   then guesses, usually *he*. With pronouns set, the AI engines receive a characters list:
 
@@ -102,6 +102,10 @@ How notes reach the engines: the pipeline puts the characters list, the series n
 (page text never counts as instructions). The glossary and notes are part of the patch-cache key, so editing them
 translates cached pages again.
 
+With Gemini, the notes and glossary leave the phone with each request, on your own key. Every reply is capped by the
+number of bubbles (300 + 120 tokens each, at most 8,192), so no note can make a call write, and bill, more than a
+page needs.
+
 ## Sound effects
 
 **Settings › Sound effects** decides what happens to them in the reader:
@@ -109,9 +113,10 @@ translates cached pages again.
 | Mode | Result |
 |---|---|
 | **Keep** | The original effect stays untouched |
-| **Gloss** | A small translation beside the original |
-| **Overlay** (default) | The translation drawn over the original, which stays visible |
-| **Replace** | The original is erased and the translation drawn in its place |
+| **Replace** (default) | The original is erased and the translation drawn in its place |
+
+Gloss (a small translation beside the original) and Overlay (the translation drawn over the original) were removed;
+a choice of either now reads as Replace.
 
 How effects are found and read:
 

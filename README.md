@@ -146,7 +146,7 @@ lettered pages.
   ([more](docs/TRANSLATION_QUALITY.md)).
 - **Reads the page's language.** A Korean, Japanese or Chinese page switches the reader to that source language by
   itself, unless you set one for the site.
-- **Sound effects your way.** Keep, gloss, overlay or replace them (Settings › *Sound effects*); with Replace, even
+- **Sound effects your way.** Keep or replace them (Settings › *Sound effects*); with Replace, even
   effects nothing can read are erased.
 - **Scrolling and paged readers.** Translations stay on their page image when the site shifts its layout, a page
   turn that does not scroll (tap or swipe readers) is noticed and translated, pages still downloading are picked up
@@ -166,7 +166,7 @@ lettered pages.
   *Try a translation* box to check an engine before reading.
 - **The app speaks your language.** The interface is in English by default and can be switched to any of the 15
   languages below (Arabic right to left) in Settings › App language.
-- **Updates itself.** A newer release is offered once a day (Update, Skip this version or Later), downloaded,
+- **Updates itself.** A newer release is offered once a day (Update or Later), downloaded,
   checked against its published SHA-256 and handed to Android's installer.
 
 **Languages.** Source: Japanese, Korean, Chinese (Simplified and Traditional), English, Spanish, French, German,
@@ -208,7 +208,7 @@ Also in the Studio:
 
 - **Fonts:** 21 bundled fonts with a dialogue and a sound-effect default for every target language, plus your own
   `.ttf` / `.otf` / `.ttc`. The reader letters with the same fonts (Settings › Fonts).
-- **Sound effects:** keep, gloss, overlay or replace each one, start from a preset, then move, turn, stretch or
+- **Sound effects:** keep or replace each one, start from a preset, then move, turn, stretch or
   bend it.
 - **Better cleanup:** LaMa, an optional 208 MB model, rebuilds the artwork under text (phones with 4 GB of RAM or
   more).
@@ -255,7 +255,7 @@ Panelglass is not on Google Play. Each release is published on GitHub:
 3. Open the APK on your phone and allow your browser or file manager to install unknown apps when Android asks.
 4. To update, install the newer APK over the old one; your sites, settings and downloaded models are kept.
    From 0.3.0 the app does this itself: once a day it asks GitHub for the latest release and offers it
-   (**Update**, **Skip this version** or **Later**); **Settings › About › Check for updates** checks on demand, and
+   (**Update** or **Later**); **Settings › About › Check for updates** checks on demand, and
    **Check automatically** turns the daily check off. The
    APK is downloaded by Android, checked against the release's `.sha256`, and handed to Android's installer (allow
    Panelglass to install apps the first time).
@@ -274,7 +274,7 @@ Panelglass is not on Google Play. Each release is published on GitHub:
      *downloaded*. Qwen runs on the GPU, or on the CPU on phones under 6 GB of RAM (about 3× slower, but far less
      memory); **Settings → Models → Qwen runs on** changes it ([details](docs/MEMORY_USAGE.md)).
 3. For Japanese with an offline engine, also download **Japanese manga OCR** (140 MB).
-4. Choose what happens to **Sound effects** (Keep, Gloss, Overlay or Replace) and, for Gemini or an on-device model,
+4. Choose what happens to **Sound effects** (Keep or Replace) and, for Gemini or an on-device model,
    add a few **Translation notes** ([suggested notes](docs/TRANSLATION_QUALITY.md#translation-notes)).
 5. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
    **Stop** ends translation; **⋮ → Re-translate** reads the current screen again from scratch; **⋮ → Glossary &

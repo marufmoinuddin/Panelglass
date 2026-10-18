@@ -54,7 +54,6 @@ class SettingsRepository @Inject constructor(
         val automaticPacks = booleanPreferencesKey("automaticPacksDone")
         val translationNotes = stringPreferencesKey("translationNotes")
         val updateCheckedAt = longPreferencesKey("updateCheckedAt")
-        val skippedUpdate = stringPreferencesKey("skippedUpdate")
         val autoUpdateCheck = booleanPreferencesKey("autoUpdateCheck")
         fun model(id: EngineId) = stringPreferencesKey("model_" + id.name)
         fun profile(id: EngineId, model: String) = stringPreferencesKey("profile_" + id.name + "_" + model)
@@ -97,9 +96,6 @@ class SettingsRepository @Inject constructor(
     suspend fun updateCheckedAt(): Long = dataStore.data.first()[K.updateCheckedAt] ?: 0L
     suspend fun setUpdateCheckedAt(v: Long) { dataStore.edit { it[K.updateCheckedAt] = v } }
 
-    /** A version the user chose to skip: the daily check does not offer it again. */
-    suspend fun skippedUpdate(): String? = dataStore.data.first()[K.skippedUpdate]
-    suspend fun setSkippedUpdate(v: String) { dataStore.edit { it[K.skippedUpdate] = v } }
     suspend fun setAutoUpdateCheck(v: Boolean) { dataStore.edit { it[K.autoUpdateCheck] = v } }
 
     /** How the reader treats sound effects; read since the start, but nothing could set it before. */

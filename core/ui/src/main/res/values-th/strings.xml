@@ -450,12 +450,8 @@
     </plurals>
     <string name="studio_sfx_title">เสียงประกอบ</string>
     <string name="studio_sfx_keep">คงไว้</string>
-    <string name="studio_sfx_gloss">คำอธิบาย</string>
-    <string name="studio_sfx_overlay">วางทับ</string>
     <string name="studio_sfx_replace">แทนที่</string>
     <string name="studio_sfx_keep_note">เสียงประกอบเดิมคงไว้ตามเดิม</string>
-    <string name="studio_sfx_gloss_note">คำแปลเล็กๆ ข้างเสียงประกอบเดิม</string>
-    <string name="studio_sfx_overlay_note">วาดคำแปลทับต้นฉบับ บนหน้า: ลากเพื่อย้าย จุดจับด้านบนเพื่อหมุน มุมเพื่อปรับขนาด</string>
     <string name="studio_sfx_replace_note">ลบต้นฉบับแล้ววาดคำแปลแทนที่ บนหน้า: ลากเพื่อย้าย จุดจับด้านบนเพื่อหมุน มุมเพื่อปรับขนาด</string>
     <string name="studio_sfx_presets">เริ่มจาก</string>
     <string name="studio_sfx_preset_impact">กระแทก</string>
@@ -632,7 +628,6 @@
     <string name="update_available_title">มีอัปเดต</string>
     <string name="update_available_message">Panelglass %1$s พร้อมใช้งานแล้ว คุณใช้เวอร์ชัน %2$s</string>
     <string name="update_action">อัปเดต</string>
-    <string name="update_skip">ข้ามเวอร์ชันนี้</string>
     <string name="update_later">ภายหลัง</string>
     <string name="update_downloading">กำลังดาวน์โหลดอัปเดต…</string>
     <string name="update_progress">%1$s จาก %2$s</string>

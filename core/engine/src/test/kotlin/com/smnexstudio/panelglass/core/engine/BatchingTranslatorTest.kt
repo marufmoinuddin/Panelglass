@@ -114,6 +114,16 @@ class BatchingTranslatorTest {
     }
 
     @Test
+    fun aPageOfMoreThanOneCallsItemsIsTranslatedWhole() = runBlocking {
+        val runner = EchoRunner()
+        qwen.runnerFactory = { runner }
+        val texts = (0 until BatchingTranslator.MAX_ITEMS + 5).map { "w$it" }
+        // Before: one call of MAX_ITEMS went and the last five waited for a timer that never came.
+        val out = withTimeout(10_000) { translator.translate(job("A", *texts.toTypedArray())) }
+        assertEquals(texts.map { "T:$it" }, out)
+    }
+
+    @Test
     fun notesWithTheSameHashNeverShareACall() = runBlocking {
         val runner = EchoRunner()
         qwen.runnerFactory = { runner }
@@ -170,6 +180,8 @@ class BatchingTranslatorTest {
             assertEquals(listOf("Hello", "BOOM", "Thanks"), out.map { it?.text })
             assertEquals(listOf("こんにちは", "ドン", null), out.map { it?.source })
             val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+            // The reply is capped by the item count: a note asking for more cannot make the call write (and bill) more.
+            assertEquals(660, body["generationConfig"]!!.jsonObject["maxOutputTokens"]!!.jsonPrimitive.content.toInt())
             val parts = body["contents"]!!.jsonArray[0].jsonObject["parts"]!!.jsonArray
             val payload = Json.parseToJsonElement(parts[0].jsonObject["text"]!!.jsonPrimitive.content).jsonArray
             assertEquals(listOf(true, true, false), payload.map { it.jsonObject["read"]?.jsonPrimitive?.content == "true" })

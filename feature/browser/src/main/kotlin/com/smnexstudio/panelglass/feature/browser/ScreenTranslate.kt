@@ -208,6 +208,11 @@ private fun StatusDiscContent(state: ScreenSession, modifier: Modifier) {
     }
 }
 
-/** WEBP → ImageBitmap, meant for a worker thread. */
-fun decodePatch(p: Patch): ImageBitmap? =
-    runCatching { BitmapFactory.decodeByteArray(p.webp, 0, p.webp.size)?.asImageBitmap() }.getOrNull()
+/**
+ * The patch as an ImageBitmap: its rendered pixels as they are, or its WEBP decoded (a patch from the cache). Meant
+ * for a worker thread.
+ */
+fun decodePatch(p: Patch): ImageBitmap? {
+    (p.image as? Bitmap)?.let { return it.asImageBitmap() }
+    return runCatching { BitmapFactory.decodeByteArray(p.webp, 0, p.webp.size)?.asImageBitmap() }.getOrNull()
+}

@@ -450,12 +450,8 @@
     </plurals>
     <string name="studio_sfx_title">効果音</string>
     <string name="studio_sfx_keep">残す</string>
-    <string name="studio_sfx_gloss">注釈</string>
-    <string name="studio_sfx_overlay">重ねる</string>
     <string name="studio_sfx_replace">置き換える</string>
     <string name="studio_sfx_keep_note">元の効果音をそのまま残します。</string>
-    <string name="studio_sfx_gloss_note">元の効果音の横に小さく訳を添えます。</string>
-    <string name="studio_sfx_overlay_note">元の効果音の上に訳を描きます。ページ上でドラッグで移動、上のハンドルで回転、角でサイズ変更。</string>
     <string name="studio_sfx_replace_note">元の効果音を消して、その場所に訳を描きます。ページ上でドラッグで移動、上のハンドルで回転、角でサイズ変更。</string>
     <string name="studio_sfx_presets">プリセット</string>
     <string name="studio_sfx_preset_impact">インパクト</string>
@@ -632,7 +628,6 @@
     <string name="update_available_title">アップデートがあります</string>
     <string name="update_available_message">Panelglass %1$s が利用できます。現在のバージョンは %2$s です。</string>
     <string name="update_action">アップデート</string>
-    <string name="update_skip">このバージョンをスキップ</string>
     <string name="update_later">後で</string>
     <string name="update_downloading">アップデートをダウンロードしています…</string>
     <string name="update_progress">%1$s / %2$s</string>

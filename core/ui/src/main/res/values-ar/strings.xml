@@ -505,12 +505,8 @@
     </plurals>
     <string name="studio_sfx_title">مؤثر صوتي</string>
     <string name="studio_sfx_keep">إبقاء</string>
-    <string name="studio_sfx_gloss">حاشية</string>
-    <string name="studio_sfx_overlay">تراكب</string>
     <string name="studio_sfx_replace">استبدال</string>
     <string name="studio_sfx_keep_note">يبقى المؤثر الأصلي كما هو.</string>
-    <string name="studio_sfx_gloss_note">ترجمة صغيرة بجانب المؤثر الأصلي.</string>
-    <string name="studio_sfx_overlay_note">تُرسم الترجمة فوق الأصل. على الصفحة: اسحب للتحريك، والمقبض العلوي للتدوير، والزاوية لتغيير الحجم.</string>
     <string name="studio_sfx_replace_note">يُمحى الأصل وتُرسم الترجمة مكانه. على الصفحة: اسحب للتحريك، والمقبض العلوي للتدوير، والزاوية لتغيير الحجم.</string>
     <string name="studio_sfx_presets">ابدأ من</string>
     <string name="studio_sfx_preset_impact">صدمة</string>
@@ -707,7 +703,6 @@
     <string name="update_available_title">يتوفر تحديث</string>
     <string name="update_available_message">يتوفر Panelglass %1$s. لديك الإصدار %2$s.</string>
     <string name="update_action">تحديث</string>
-    <string name="update_skip">تخطي هذا الإصدار</string>
     <string name="update_later">لاحقًا</string>
     <string name="update_downloading">جارٍ تنزيل التحديث…</string>
     <string name="update_progress">%1$s من %2$s</string>

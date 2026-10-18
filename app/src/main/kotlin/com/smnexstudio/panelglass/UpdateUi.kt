@@ -34,7 +34,7 @@ import java.io.File
 import com.smnexstudio.panelglass.core.ui.R as UiR
 
 /**
- * The update flow over whatever screen is open: offer (Update / Skip this version / Later), download progress
+ * The update flow over whatever screen is open: offer (Update / Later), download progress
  * (Cancel), install, and the results of a check from Settings. Nothing shows while it is [UpdateState.Idle].
  */
 @Composable
@@ -48,15 +48,10 @@ fun UpdateHost(state: UpdateState, updates: AppUpdates) {
             Title(stringResource(UiR.string.update_available_title))
             Body(stringResource(UiR.string.update_available_message, state.release.version, state.current))
             Spacer(Modifier.height(16.dp))
-            // Three actions do not fit one line in a phone dialog (the pill wrapped to "UPD / ATE"): Skip gets its own.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 TextAction(stringResource(UiR.string.update_later), Tokens.InkSoft, updates::dismiss)
                 Spacer(Modifier.width(8.dp))
                 PrimaryPill(stringResource(UiR.string.update_action).uppercase(), letterSpaced = true, onClick = updates::download)
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextAction(stringResource(UiR.string.update_skip), Tokens.InkFaint, updates::skip)
             }
         }
         is UpdateState.Downloading -> StickerDialog(onDismiss = {}) {

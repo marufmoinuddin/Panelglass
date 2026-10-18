@@ -25,6 +25,16 @@ import kotlinx.serialization.json.jsonPrimitive
  * Parsed strictly; the engines retry once with [repairPrompt] before the caller falls back.
  */
 object LlmContract {
+    /**
+     * The most a reply may cost in output tokens for [items] items: a bubble's `{i, source, text}` is ~60–70 tokens, so
+     * [PER_ITEM_TOKENS] leaves room, and nothing a note asks for can make a call write (and bill) more.
+     */
+    fun outputBudget(items: Int): Int = minOf(MAX_OUTPUT_TOKENS, BASE_OUTPUT_TOKENS + PER_ITEM_TOKENS * items.coerceAtLeast(1))
+
+    const val BASE_OUTPUT_TOKENS = 300
+    const val PER_ITEM_TOKENS = 120
+    const val MAX_OUTPUT_TOKENS = 8192
+
     private val lenient = Json { ignoreUnknownKeys = true; isLenient = true }
 
     fun systemPrompt(req: TranslateRequest): String = buildString {

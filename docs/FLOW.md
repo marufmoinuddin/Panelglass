@@ -104,18 +104,18 @@ flowchart TD
     B -- yes --> Z[Emit cached patches]
     B -- no --> C[Downscale to ≤1600 px<br/>for detection]
     C --> D[Comic text/bubble detector]
-    D --> D2[Second pass: PP-OCRv6 tiny<br/>text outside the comic boxes]
+    D --> D2[Second pass: PP-OCRv6 tiny, run alongside<br/>text outside the comic boxes]
     D2 --> E[Drop boxes outside the ROI,<br/>under controls, already done,<br/>or cut by the screen edge]
     E --> F{Engine reads crops?}
     F -- "Gemini" --> G[One UNREAD placeholder<br/>per text box]
-    F -- "Google Translate / on-device LLM" --> H[OCR each box<br/>manga-ocr or ML Kit, high-contrast retry<br/>+ full-page ML Kit backstop]
-    G --> I[Build regions<br/>one per detector box]
+    F -- "Google Translate / on-device LLM" --> H[OCR each box<br/>manga-ocr or ML Kit, high-contrast retry<br/>unsure free-text readings dropped<br/>+ full-page ML Kit backstop]
+    G --> I[Build regions<br/>one per detector box, one per balloon]
     H --> I
     I --> J[Classify each region<br/>ENCLOSED · CAPTION · FREE · SFX · IN_SCENE]
     J --> K[Reading order]
     K --> L[Translate]
-    L --> M[Erase + fit + draw<br/>unreadable SFX: erase only]
-    M --> N[Encode WEBP patch,<br/>emit immediately]
+    L --> M[Erase + fit inside the balloon + draw<br/>unreadable SFX: erase only]
+    M --> N[Emit the patch's bitmap at once<br/>WEBP encoded for the cache afterwards]
     N --> O[(Store page in patch cache)]
 ```
 
@@ -126,16 +126,24 @@ Key points:
 - **Detection is never cached.** Pixels and the region of interest change with every scroll. Only the rendered
   patches are cached, keyed by the image hash, languages, engine, `PIPELINE_VERSION` (bump it whenever rendering
   changes), the lettering font, and a digest of the glossary and notes (so editing them translates again).
-- **Two detectors.** Text the comic detector missed and the second pass found joins as free-text boxes. A sure
-  free-text box nothing could read becomes an *unreadable* sound-effect region when SFX mode is Replace: it is never
-  sent to an engine, only erased.
+- **Two detectors, side by side.** The comic detector and the second pass are independent and run at the same time.
+  Text the comic detector missed and the second pass found joins as free-text boxes. A sure free-text box nothing
+  could read becomes an *unreadable* sound-effect region when SFX mode is Replace: it is never sent to an engine, only
+  erased.
+- **Unsure readings are not text.** manga-ocr writes Japanese for any crop; on speed lines, credits and watermarks it
+  invents words it is unsure of. A free-text box read with less than 0.80 confidence is dropped, so nothing is
+  translated or erased there (see [DETECTION_AND_OCR.md](DETECTION_AND_OCR.md#manga-ocr-japanese-optional-download)).
+- **One region per balloon.** Text boxes inside the same balloon (two columns of one speech) become one region, in
+  reading order, and a reading nested in a larger one that holds its text is dropped. Each was erased with the whole
+  balloon and gave a patch over the same rectangle, so the reader kept one and the second sentence vanished.
 - **Lone letters.** A single letter that only the full-page ML Kit pass saw, outside every detector box, is dropped.
 - **Filtering happens before OCR.** Boxes the pipeline would drop anyway are skipped before recognition
   (`detectPage(..., skipRead)`), because per-crop manga-ocr is the slowest stage.
 - **Edge-cut bubbles** (a text box touching the top or bottom of the snapshot) are deferred. They are translated when
   a later capture shows them whole.
 - **Patches stream.** Each region's patch is emitted as soon as it is rendered, so the first bubble appears while the
-  rest are still in progress.
+  rest are still in progress. The reader shows the rendered bitmap itself; the WEBP the patch cache stores is encoded
+  afterwards, in the background, so encoding never delays the screen.
 
 ## Translation
 
@@ -147,7 +155,13 @@ Key points:
 - **SFX** go through a dictionary (hiragana read as katakana; extra ッ / ー ignored), then the SFX cache (Room), then
   the engine.
 - **Duplicates** (the same normalised text) are translated once.
-- **Cloud engines** get up to 60 items per call, because their latency is dominated by round trips.
+- **Cloud engines** get up to 60 items per call, because their latency is dominated by round trips. More than 60 go
+  in as many calls as it takes.
+- **No batching wait for the screen.** The batcher can hold items 80 ms for other images to share a call; the
+  pipeline's calls skip it (`TranslateJob.immediate`), since nothing else is coming for a viewport or a Studio page.
+- **Replies are capped.** Every cloud call sets an output limit of 300 + 120 tokens per item, at most 8,192
+  (`LlmContract.outputBudget`). Notes are followed instructions, and without a cap one asking for an essay per line
+  would make the call write, and bill, thousands of tokens.
 - **On-device LLMs** get the viewport in groups of 4 bubbles in reading order. Each group is rendered as soon as it
   returns, with the previous group's lines passed along as context. Inside the engine, prompts are chunked to at most
   12 items to fit the 4096-token KV cache shared by prompt and reply.
@@ -174,18 +188,24 @@ Key points:
      original stays rather than a blank box.
    - **Text on art that cannot be cleanly erased:** the source footprint is masked (white on art, the box colour in
      captions) and the translation is fitted into that footprint. The text box is never widened into a panel.
-2. **Fit** (`RegionRenderer.fit`): binary search on the font size using two monotonic tests only:
+2. **Balloon shape.** Once a speech balloon is erased, its paper is flood-filled to find its real inside
+   (`BalloonFit.shape`): the box's corners are art on an oval, a spiky shout or a slanted balloon, and text fitted to
+   the box ran over the outline. Rectangles of several shapes (the box's own, square, wide, tall) are tried on the
+   paper; the one the translation letters largest in, at a legible size, is used, and the lettering is clipped to the
+   traced outline, as in the Studio. A balloon whose paper is not found keeps its box.
+3. **Fit** (`TextFit`): binary search on the font size using two monotonic tests only:
    - the laid-out text height fits the box;
    - the widest unbreakable run (a word; each kanji or kana on its own) fits the width.
 
    The floor is 12 px. A vertical column may widen (up to 2.5×, staying clear of neighbours) before the text goes
    below 55% of the source glyph size.
-3. **Place.** Free text with no container that is drawn over the untouched art grows from its original centre towards
+4. **Place.** Free text with no container that is drawn over the untouched art grows from its original centre towards
    the lowest-energy direction on a 1/8-scale Sobel map (`Placement`), drifting at most one text height. Once its
    footprint has been erased or masked, it stays exactly on that footprint (moved away, it sat over the art above a
    wiped strip). On a mask the ink is the region's own colour when it contrasts (luminance difference ≥ 100), else
    black on a light mask and white on a dark one.
-4. **Encode** the crop as WEBP (lossless at quality 100), positioned as percentages of the snapshot.
+5. **Hand over** the crop as a patch, positioned as percentages of the snapshot. It carries the rendered bitmap, which
+   the reader shows as it is; its WEBP (lossless at quality 100) is encoded only when the patch cache stores it.
 
 ## Showing patches while scrolling
 

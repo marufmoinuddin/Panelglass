@@ -25,7 +25,7 @@ class StudioConverters {
     @TypeConverter fun textToRegion(v: String?): TextRegion? = v?.let { runCatching { json.decodeFromString<TextRegion>(it).upgraded() }.getOrNull() }
 
     @TypeConverter fun sfxToText(v: SfxEdit?): String? = v?.let { json.encodeToString(it) }
-    @TypeConverter fun textToSfx(v: String?): SfxEdit? = v?.let { runCatching { json.decodeFromString<SfxEdit>(it) }.getOrNull() }
+    @TypeConverter fun textToSfx(v: String?): SfxEdit? = v?.let { runCatching { json.decodeFromString<SfxEdit>(retiredSfxModes(it)) }.getOrNull() }
 
     @TypeConverter fun stringMapToText(v: Map<String, String>): String = json.encodeToString(v)
     @TypeConverter fun textToStringMap(v: String): Map<String, String> = json.decodeFromString(v)
@@ -36,7 +36,14 @@ class StudioConverters {
     @TypeConverter fun stringListToText(v: List<String>): String = json.encodeToString(v)
     @TypeConverter fun textToStringList(v: String): List<String> = json.decodeFromString(v)
 
-    private companion object {
+    internal companion object {
+        /**
+         * Gloss and Overlay were removed (2026-10-18): a saved one is read as Replace. Overlay, the old default, was
+         * never written, so only an explicit mode needs mapping.
+         */
+        fun retiredSfxModes(v: String): String = RETIRED_SFX_MODE.replace(v, "\"mode\":\"REPLACE\"")
+        private val RETIRED_SFX_MODE = Regex("\"mode\"\\s*:\\s*\"(GLOSS|OVERLAY)\"")
+
         val json = Json { ignoreUnknownKeys = true; encodeDefaults = false; explicitNulls = false }
     }
 }

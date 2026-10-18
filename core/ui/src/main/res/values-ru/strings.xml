@@ -483,12 +483,8 @@
     </plurals>
     <string name="studio_sfx_title">Звуковой эффект</string>
     <string name="studio_sfx_keep">Оставить</string>
-    <string name="studio_sfx_gloss">Пояснение</string>
-    <string name="studio_sfx_overlay">Поверх</string>
     <string name="studio_sfx_replace">Заменить</string>
     <string name="studio_sfx_keep_note">Оригинальный эффект остаётся как есть.</string>
-    <string name="studio_sfx_gloss_note">Небольшой перевод рядом с оригинальным эффектом.</string>
-    <string name="studio_sfx_overlay_note">Перевод рисуется поверх оригинала. На странице: перетащите, чтобы сдвинуть; верхний маркер поворачивает, угол меняет размер.</string>
     <string name="studio_sfx_replace_note">Оригинал стирается, а перевод рисуется на его месте. На странице: перетащите, чтобы сдвинуть; верхний маркер поворачивает, угол меняет размер.</string>
     <string name="studio_sfx_presets">Шаблон</string>
     <string name="studio_sfx_preset_impact">Удар</string>
@@ -677,7 +673,6 @@
     <string name="update_available_title">Доступно обновление</string>
     <string name="update_available_message">Доступен Panelglass %1$s. У вас %2$s.</string>
     <string name="update_action">Обновить</string>
-    <string name="update_skip">Пропустить эту версию</string>
     <string name="update_later">Позже</string>
     <string name="update_downloading">Загрузка обновления…</string>
     <string name="update_progress">%1$s из %2$s</string>

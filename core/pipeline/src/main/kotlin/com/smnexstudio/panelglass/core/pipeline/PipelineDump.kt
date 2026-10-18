@@ -23,7 +23,7 @@ class PipelineDump private constructor(private val dir: File) {
     fun region(i: Int, r: TextRegion, seed: Any?, translation: String?) {
         lines.append("#$i kind=${r.kind} seed=$seed bbox=${r.bbox} container=${r.container} vertical=${r.vertical} ")
             .append("font=${"%.1f".format(r.fontSizePx)} fg=${"%08x".format(r.fgColor)} bg=${"%08x".format(r.bgColor)} lines=${r.lines.size}\n")
-        for (l in r.lines) lines.append("    line bbox=${l.bbox} font=${l.fontSizePx} text=${l.text}\n")
+        for (l in r.lines) lines.append("    line bbox=${l.bbox} font=${l.fontSizePx} conf=${"%.3f".format(l.confidence)} text=${l.text}\n")
         lines.append("    text=${r.text}\n    translation=${translation}\n")
     }
 

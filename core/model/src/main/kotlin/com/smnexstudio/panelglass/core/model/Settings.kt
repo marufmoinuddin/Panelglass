@@ -25,7 +25,7 @@ data class Settings(
      * null is Auto, the comic font for the target language (`StudioFonts.defaultFor`).
      */
     val readerFontId: String? = null,
-    val sfxMode: SfxMode = SfxMode.OVERLAY,
+    val sfxMode: SfxMode = SfxMode.REPLACE,
     val freeTextMode: FreeTextMode = FreeTextMode.ERASE,
     val patchQuality: Int = 100,
     val translateOnOpen: Boolean = false,

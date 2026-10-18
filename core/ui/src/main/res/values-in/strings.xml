@@ -450,12 +450,8 @@
     </plurals>
     <string name="studio_sfx_title">Efek suara</string>
     <string name="studio_sfx_keep">Biarkan</string>
-    <string name="studio_sfx_gloss">Catatan</string>
-    <string name="studio_sfx_overlay">Timpa</string>
     <string name="studio_sfx_replace">Ganti</string>
     <string name="studio_sfx_keep_note">Efek asli tetap seperti apa adanya.</string>
-    <string name="studio_sfx_gloss_note">Terjemahan kecil di samping efek asli.</string>
-    <string name="studio_sfx_overlay_note">Terjemahan digambar di atas aslinya. Di halaman: seret untuk memindah, pegangan atas untuk memutar, sudut untuk mengubah ukuran.</string>
     <string name="studio_sfx_replace_note">Efek asli dihapus dan terjemahan digambar di tempatnya. Di halaman: seret untuk memindah, pegangan atas untuk memutar, sudut untuk mengubah ukuran.</string>
     <string name="studio_sfx_presets">Mulai dari</string>
     <string name="studio_sfx_preset_impact">Hantaman</string>
@@ -632,7 +628,6 @@
     <string name="update_available_title">Pembaruan tersedia</string>
     <string name="update_available_message">Panelglass %1$s tersedia. Versi Anda %2$s.</string>
     <string name="update_action">Perbarui</string>
-    <string name="update_skip">Lewati versi ini</string>
     <string name="update_later">Nanti</string>
     <string name="update_downloading">Mengunduh pembaruan…</string>
     <string name="update_progress">%1$s dari %2$s</string>

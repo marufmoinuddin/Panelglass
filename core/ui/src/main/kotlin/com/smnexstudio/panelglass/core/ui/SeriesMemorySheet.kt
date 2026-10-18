@@ -149,12 +149,12 @@ private fun TermDialog(entry: GlossaryEntry, onDismiss: () -> Unit, onSave: (Glo
         Text(stringResource(R.string.memory_term_title), fontFamily = Jakarta, fontWeight = FontWeight.W800, fontSize = 20.sp, color = Tokens.Ink)
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(
-            value = source, onValueChange = { source = it }, label = { Text(stringResource(R.string.memory_term_source)) },
+            value = source, onValueChange = { source = it.take(GlossaryEntry.MAX_CHARS) }, label = { Text(stringResource(R.string.memory_term_source)) },
             singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors(), modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
-            value = target, onValueChange = { target = it }, label = { Text(stringResource(R.string.memory_term_target)) },
+            value = target, onValueChange = { target = it.take(GlossaryEntry.MAX_CHARS) }, label = { Text(stringResource(R.string.memory_term_target)) },
             singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors(), modifier = Modifier.fillMaxWidth(),
         )
         SectionLabel(stringResource(R.string.memory_term_pronoun), Modifier.padding(top = 6.dp, bottom = 4.dp), inset = 0.dp)

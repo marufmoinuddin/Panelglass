@@ -118,8 +118,8 @@ object ReleaseInfo {
 
 /**
  * In-app updates from GitHub Releases, the only place Panelglass is published (README › Install). A check asks
- * GitHub for the latest release — nothing about the user is sent. An update is offered once a day at most, never
- * again after "Skip this version"; Settings checks on demand. The APK comes through Android's DownloadManager, is
+ * GitHub for the latest release — nothing about the user is sent. An update is offered once a day at most ("Later"
+ * puts it off until the next day's check); Settings checks on demand. The APK comes through Android's DownloadManager, is
  * checked against the release's `.sha256`, and goes to Android's installer, which also refuses an APK not signed
  * with the installed app's key. Debuggable builds (`.debug`, their own app) never check by themselves.
  */
@@ -154,13 +154,13 @@ class AppUpdates @Inject constructor(
             if (now - settings.updateCheckedAt() < CHECK_EVERY_MS) return@launch
             val release = runCatching { latest() }.getOrNull() ?: return@launch
             settings.setUpdateCheckedAt(now)
-            if (ReleaseInfo.isNewer(release.version, currentVersion) && settings.skippedUpdate() != release.version) {
+            if (ReleaseInfo.isNewer(release.version, currentVersion)) {
                 _state.value = UpdateState.Available(release, currentVersion)
             }
         }
     }
 
-    /** Settings › Check for updates: says what it found, and offers a skipped version again. */
+    /** Settings › Check for updates: says what it found. */
     fun checkNow() {
         job?.cancel()
         _state.value = UpdateState.Checking
@@ -173,13 +173,6 @@ class AppUpdates @Inject constructor(
             _state.value = if (release != null && ReleaseInfo.isNewer(release.version, currentVersion))
                 UpdateState.Available(release, currentVersion) else UpdateState.UpToDate(currentVersion)
         }
-    }
-
-    /** "Skip this version": not offered again by the daily check (Settings still finds it). */
-    fun skip() {
-        val r = (_state.value as? UpdateState.Available)?.release
-        _state.value = UpdateState.Idle
-        if (r != null) scope.launch { settings.setSkippedUpdate(r.version) }
     }
 
     /** "Later" or closing a message: offered again on the next day's check. */

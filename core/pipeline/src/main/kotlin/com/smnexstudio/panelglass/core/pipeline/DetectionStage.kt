@@ -12,7 +12,9 @@ import com.smnexstudio.panelglass.core.ocr.PageDetection
 import com.smnexstudio.panelglass.core.ocr.PanelCutter
 import com.smnexstudio.panelglass.core.ocr.RegionBuilder
 import com.smnexstudio.panelglass.core.ocr.RegionClassifier
+import com.smnexstudio.panelglass.core.ocr.ReadingOrder
 import com.smnexstudio.panelglass.core.ocr.RegionClusterer
+import com.smnexstudio.panelglass.core.render.RegionRenderer
 import com.smnexstudio.panelglass.core.ocr.TextBox
 import com.smnexstudio.panelglass.core.ocr.TextDetector
 import kotlinx.coroutines.ensureActive
@@ -133,10 +135,73 @@ class DetectionStage(private val detector: TextDetector) {
             // What nothing could read is kept only as a sound effect to erase: never balloon text to letter.
             .map { if (it.unreadable) it.copy(kind = RegionKind.SFX) else it }
         val panels = panelCutter.segment(src, lang.rtlReading)
-        return panelCutter.orderRegions(classified, panels, lang.rtlReading)
+        return panelCutter.orderRegions(mergeSameBalloon(dropNested(classified), lang), panels, lang.rtlReading)
     }
 
     companion object {
+        /**
+         * Regions without a reading nested in another one that already holds its text. Two overlapping text boxes over
+         * one balloon read "…あなた" and "…あなたどうして…!": both were translated and lettered into the same balloon,
+         * each at half the room. The larger region (the earlier of two equal ones) is kept.
+         */
+        internal fun dropNested(regions: List<TextRegion>): List<TextRegion> = regions.filterIndexed { i, r ->
+            if (r.unread || r.unreadable) return@filterIndexed true
+            val core = r.text.filter(Char::isLetterOrDigit)
+            if (core.isEmpty() || r.bbox.area <= 0) return@filterIndexed true
+            regions.withIndex().none { (j, o) ->
+                j != i && !o.unread && !o.unreadable &&
+                    (o.bbox.area > r.bbox.area || (o.bbox.area == r.bbox.area && j < i)) &&
+                    (o.bbox.intersect(r.bbox)?.area ?: 0) >= r.bbox.area * NESTED_SHARE &&
+                    o.text.filter(Char::isLetterOrDigit).contains(core)
+            }
+        }
+
+        /** Share of a region's box inside another for it to count as nested in it. */
+        private const val NESTED_SHARE = 0.8f
+
+        /** Text boxes of one balloon span at most this multiple of their summed widths (and heights). */
+        private const val ADJACENT_SPAN = 1.5f
+
+        /**
+         * Balloon text read as several regions (two columns: 見せてやる！ and この力が…) becomes one region, in reading
+         * order. Each was erased with the whole balloon and gave a patch over the same rectangle, so the reader kept one
+         * patch and dropped the other as a duplicate: the second sentence vanished, its Japanese erased. One region
+         * also gives the engine the whole utterance and the lettering all the balloon's room. Not for a box spanning
+         * joined balloons, whose texts lie far apart ([ADJACENT_SPAN]), nor for regions the engine reads itself.
+         */
+        internal fun mergeSameBalloon(regions: List<TextRegion>, lang: Lang): List<TextRegion> {
+            val groups = regions.withIndex()
+                .filter { (_, r) -> r.kind == RegionKind.ENCLOSED && r.container != null && r.state == ReadState.READ && r.text.isNotBlank() }
+                .groupBy { it.value.container!! }
+                // Columns (or rows) of one balloon sit side by side: together they span about the sum of their sizes. Two
+                // balloons the detector boxed as one hold text far apart, which spans much more. The balloon's box may be
+                // smaller than the lettering (a spiky shout's text reaches into the spikes): the regions were already
+                // grouped by the balloon holding each text box's centre, so that is not checked again.
+                .filter { (balloon, members) ->
+                    members.size > 1 && members.map { it.value.bbox }.let { boxes ->
+                        val u = boxes.reduce(IntRect::union)
+                        u.width <= boxes.sumOf { it.width } * ADJACENT_SPAN && u.height <= boxes.sumOf { it.height } * ADJACENT_SPAN &&
+                            balloon.width <= u.width * RegionRenderer.BALLOON_MAX_WIDTH_X
+                    }
+                }
+            if (groups.isEmpty()) return regions
+            val merged = HashMap<Int, TextRegion>()
+            val gone = HashSet<Int>()
+            val sep = if (lang.isCjk && lang != Lang.KO) "" else " "
+            for ((_, members) in groups) {
+                val ordered = ReadingOrder.sort(members.map { it.value }, lang.rtlReading)
+                val first = ordered.first()
+                merged[members.minOf { it.index }] = first.copy(
+                    bbox = ordered.map { it.bbox }.reduce(IntRect::union),
+                    text = ordered.joinToString(sep) { it.text.trim() },
+                    lines = ordered.flatMap { it.lines },
+                    vertical = ordered.count { it.vertical } * 2 >= ordered.size,
+                )
+                members.forEach { gone += it.index }
+            }
+            return regions.mapIndexedNotNull { i, r -> merged[i] ?: r.takeIf { i !in gone } }
+        }
+
         /**
          * One [ReadState.UNREADABLE] line per free-text box the detector is sure of ([UNREADABLE_MIN_CONFIDENCE]) that no
          * line was read in: brush-lettered sound effects ML Kit cannot read even in high contrast (저벅, 벌벌).

@@ -461,12 +461,8 @@
     </plurals>
     <string name="studio_sfx_title">Efecto de sonido</string>
     <string name="studio_sfx_keep">Mantener</string>
-    <string name="studio_sfx_gloss">Glosa</string>
-    <string name="studio_sfx_overlay">Superponer</string>
     <string name="studio_sfx_replace">Reemplazar</string>
     <string name="studio_sfx_keep_note">El efecto original se queda como está.</string>
-    <string name="studio_sfx_gloss_note">Una traducción pequeña junto al efecto original.</string>
-    <string name="studio_sfx_overlay_note">La traducción se dibuja sobre el original. En la página: arrastra para moverla, el tirador de arriba para girarla, la esquina para cambiar el tamaño.</string>
     <string name="studio_sfx_replace_note">Se borra el original y la traducción se dibuja en su lugar. En la página: arrastra para moverla, el tirador de arriba para girarla, la esquina para cambiar el tamaño.</string>
     <string name="studio_sfx_presets">Partir de</string>
     <string name="studio_sfx_preset_impact">Impacto</string>
@@ -647,7 +643,6 @@
     <string name="update_available_title">Actualización disponible</string>
     <string name="update_available_message">Panelglass %1$s está disponible. Tienes la %2$s.</string>
     <string name="update_action">Actualizar</string>
-    <string name="update_skip">Omitir esta versión</string>
     <string name="update_later">Más tarde</string>
     <string name="update_downloading">Descargando la actualización…</string>
     <string name="update_progress">%1$s de %2$s</string>

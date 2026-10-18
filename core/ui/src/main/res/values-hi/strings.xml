@@ -461,12 +461,8 @@
     </plurals>
     <string name="studio_sfx_title">ध्वनि प्रभाव</string>
     <string name="studio_sfx_keep">रखें</string>
-    <string name="studio_sfx_gloss">टिप्पणी</string>
-    <string name="studio_sfx_overlay">ऊपर बनाएँ</string>
     <string name="studio_sfx_replace">बदलें</string>
     <string name="studio_sfx_keep_note">मूल प्रभाव जैसा है वैसा रहता है।</string>
-    <string name="studio_sfx_gloss_note">मूल प्रभाव के पास एक छोटा अनुवाद।</string>
-    <string name="studio_sfx_overlay_note">अनुवाद मूल के ऊपर बनता है। पेज पर: खिसकाने के लिए खींचें, घुमाने के लिए ऊपर का हैंडल, आकार के लिए कोना।</string>
     <string name="studio_sfx_replace_note">मूल मिटाकर उसकी जगह अनुवाद बनता है। पेज पर: खिसकाने के लिए खींचें, घुमाने के लिए ऊपर का हैंडल, आकार के लिए कोना।</string>
     <string name="studio_sfx_presets">यहाँ से शुरू करें</string>
     <string name="studio_sfx_preset_impact">इम्पैक्ट</string>
@@ -647,7 +643,6 @@
     <string name="update_available_title">अपडेट उपलब्ध है</string>
     <string name="update_available_message">Panelglass %1$s उपलब्ध है। आपके पास %2$s है।</string>
     <string name="update_action">अपडेट करें</string>
-    <string name="update_skip">यह वर्शन छोड़ें</string>
     <string name="update_later">बाद में</string>
     <string name="update_downloading">अपडेट डाउनलोड हो रहा है…</string>
     <string name="update_progress">%2$s में से %1$s</string>

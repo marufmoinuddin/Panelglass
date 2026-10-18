@@ -43,7 +43,7 @@ class GeminiEngine @Inject constructor(support: HttpEngineSupport, keys: SecureK
     enum class Options { THINKING_BUDGET_0, THINKING_LEVEL_MINIMAL, JSON_ONLY, PLAIN }
     private val optionsFor = java.util.concurrent.ConcurrentHashMap<String, Options>()
 
-    override suspend fun complete(apiKey: String, system: String, turns: List<Turn>): String {
+    override suspend fun complete(apiKey: String, system: String, turns: List<Turn>, maxOutputTokens: Int): String {
         val typed = settings.current().modelFor(id)
         if (typed.isBlank()) throw EngineException(EngineFailure.Unavailable(id, "No model configured"))
         val model = resolveModel(apiKey, typed)
@@ -57,7 +57,7 @@ class GeminiEngine @Inject constructor(support: HttpEngineSupport, keys: SecureK
                 val resp = try {
                     support.post(
                         id, "$baseUrl/models/$model:generateContent",
-                        mapOf("x-goog-api-key" to apiKey, "Content-Type" to "application/json"), body(level, system, turns),
+                        mapOf("x-goog-api-key" to apiKey, "Content-Type" to "application/json"), body(level, system, turns, maxOutputTokens),
                     )
                 } finally {
                     // Durations and shapes only: no key, no URL, no page text.
@@ -79,7 +79,7 @@ class GeminiEngine @Inject constructor(support: HttpEngineSupport, keys: SecureK
         }
     }
 
-    private fun body(level: Options, system: String, turns: List<Turn>) = buildJsonObject {
+    private fun body(level: Options, system: String, turns: List<Turn>, maxOutputTokens: Int) = buildJsonObject {
         val plain = level == Options.PLAIN
         if (!plain) put("system_instruction", obj("parts" to arr(obj("text" to s(system)))))
         put("contents", buildJsonArray {
@@ -97,11 +97,14 @@ class GeminiEngine @Inject constructor(support: HttpEngineSupport, keys: SecureK
                 },
             ))
         })
+        // Every level caps the reply: notes are the reader's own instructions, and one asking for an essay per line
+        // must not run up the key's bill (a cut reply fails as Malformed after one repair call).
+        val cap = "maxOutputTokens" to n(maxOutputTokens)
         put("generationConfig", when (level) {
-            Options.THINKING_BUDGET_0 -> obj("temperature" to n(0.2), "responseMimeType" to s("application/json"), "thinkingConfig" to obj("thinkingBudget" to n(0)))
-            Options.THINKING_LEVEL_MINIMAL -> obj("temperature" to n(0.2), "responseMimeType" to s("application/json"), "thinkingConfig" to obj("thinkingLevel" to s("minimal")))
-            Options.JSON_ONLY -> obj("temperature" to n(0.2), "responseMimeType" to s("application/json"))
-            Options.PLAIN -> obj("temperature" to n(0.2))
+            Options.THINKING_BUDGET_0 -> obj("temperature" to n(0.2), cap, "responseMimeType" to s("application/json"), "thinkingConfig" to obj("thinkingBudget" to n(0)))
+            Options.THINKING_LEVEL_MINIMAL -> obj("temperature" to n(0.2), cap, "responseMimeType" to s("application/json"), "thinkingConfig" to obj("thinkingLevel" to s("minimal")))
+            Options.JSON_ONLY -> obj("temperature" to n(0.2), cap, "responseMimeType" to s("application/json"))
+            Options.PLAIN -> obj("temperature" to n(0.2), cap)
         })
     }
 
@@ -191,12 +194,12 @@ class ClaudeEngine @Inject constructor(support: HttpEngineSupport, keys: SecureK
     override val id = EngineId.CLAUDE
     override val warmUrl = "https://api.anthropic.com/"
 
-    override suspend fun complete(apiKey: String, system: String, turns: List<Turn>): String {
+    override suspend fun complete(apiKey: String, system: String, turns: List<Turn>, maxOutputTokens: Int): String {
         val model = settings.current().modelFor(id)
         if (model.isBlank()) throw EngineException(EngineFailure.Unavailable(id, "No model configured"))
         val body = buildJsonObject {
             put("model", s(model))
-            put("max_tokens", n(4096))
+            put("max_tokens", n(maxOutputTokens))
             put("temperature", n(0.2))
             put("system", s(system))
             put("messages", buildJsonArray {
@@ -233,12 +236,13 @@ abstract class OpenAiCompatibleEngine(
     /** Provider-specific headers beyond Authorization / Content-Type. */
     protected open fun extraHeaders(): Map<String, String> = emptyMap()
 
-    override suspend fun complete(apiKey: String, system: String, turns: List<Turn>): String {
+    override suspend fun complete(apiKey: String, system: String, turns: List<Turn>, maxOutputTokens: Int): String {
         val model = model()
         if (model.isBlank()) throw EngineException(EngineFailure.Unavailable(id, "No model configured"))
         val body = buildJsonObject {
             put("model", s(model))
             put("temperature", n(0.2))
+            put("max_tokens", n(maxOutputTokens))
             put("response_format", obj("type" to s("json_object")).takeIf { !acceptsImages } ?: obj("type" to s("text")))
             put("messages", buildJsonArray {
                 add(obj("role" to s("system"), "content" to s(system + "\nWrap the array in an object as {\"items\": [...]} if you must return an object.")))

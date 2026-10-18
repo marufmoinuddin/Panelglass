@@ -97,17 +97,22 @@ class ComicTextDetector @Inject constructor(
         detectPage(bitmap, lang, skipRead, read = true)
 
     override suspend fun detectPage(bitmap: Bitmap, lang: Lang, skipRead: (TextBox) -> Boolean, read: Boolean): PageDetection = withContext(Dispatchers.Default) {
+        // Second pass: text the comic detector missed (sound effects above all) joins as free-text boxes, so it is read,
+        // handed to an engine that reads crops, or — unreadable — erased when sound effects are replaced. The two
+        // models are independent (own sessions and locks, the bitmap only read), so they run side by side.
+        val detectStart = System.currentTimeMillis()
+        val second = async { missed.detect(bitmap) to System.currentTimeMillis() - detectStart }
         val primary = mutex.withLock {
             ensureSession()
             val s = session; val e = env
             if (s == null || e == null) emptyList()
             else runCatching { infer(bitmap, s, e) }.getOrElse { android.util.Log.w(TAG, "Detector failed: ${it::class.simpleName}"); emptyList() }
         }
-        // Second pass: text the comic detector missed (sound effects above all) joins as free-text boxes, so it is read,
-        // handed to an engine that reads crops, or — unreadable — erased when sound effects are replaced.
-        val missedStart = System.currentTimeMillis()
-        val extra = MissedTextDetector.outside(missed.detect(bitmap), primary, bitmap.width, bitmap.height)
-        val missedMs = System.currentTimeMillis() - missedStart
+        val primaryMs = System.currentTimeMillis() - detectStart
+        val (missedBoxes, missedMs) = second.await()
+        // Both passes, wall clock: with the two overlapping it is near the slower one, not their sum.
+        val detectMs = System.currentTimeMillis() - detectStart
+        val extra = MissedTextDetector.outside(missedBoxes, primary, bitmap.width, bitmap.height)
         val boxes = primary + extra
         if (boxes.isEmpty()) return@withContext PageDetection(mlKit.detect(bitmap, lang))
 
@@ -118,7 +123,7 @@ class ComicTextDetector @Inject constructor(
             val lines = targets.map { t ->
                 TextLine.unread(t.bbox, vertical = lang.isCjk && lang != Lang.KO && t.bbox.height > t.bbox.width)
             }
-            android.util.Log.i(TAG, "boxes=${boxes.size} (+${extra.size} missed in ${missedMs}ms) targets=${targets.size} unread (engine reads the crops)")
+            android.util.Log.i(TAG, "boxes=${boxes.size} (+${extra.size} missed in ${missedMs}ms; detect ${detectMs}ms, first pass ${primaryMs}ms) targets=${targets.size} unread (engine reads the crops)")
             return@withContext PageDetection(lines, boxes)
         }
 
@@ -131,6 +136,7 @@ class ComicTextDetector @Inject constructor(
         // Targets are chosen from every box first (a balloon whose text box is skipped must not become a "lone"
         // balloon and be read whole), then the ones the caller will discard are left unread.
         val targets = recognitionTargets(boxes).filterNot(skipRead)
+        val rejected = ArrayList<TextBox>()
         for (target in targets) {
             val box = target.bbox
             val pad = (maxOf(box.width, box.height) * CROP_PAD).toInt().coerceAtLeast(2)
@@ -138,7 +144,15 @@ class ComicTextDetector @Inject constructor(
             if (r.width < 4 || r.height < 4) continue
             val crop = Bitmap.createBitmap(bitmap, r.left, r.top, r.width, r.height)
             try {
-                for (l in recognizer.recognize(crop, lang)) {
+                val read = recognizer.recognize(crop, lang)
+                // manga-ocr writes Japanese for any crop. A free-text box it is unsure of is speed lines, art or small
+                // print read as words (かかし, ン!! as sound effects): the box goes, so nothing is translated or erased
+                // there. Balloon text is always kept (every real balloon measured ≥ 0.87).
+                if (recognizer === mangaOcr && unsureFreeText(target, read)) {
+                    rejected += target
+                    continue
+                }
+                for (l in read) {
                     // Back to page space, trimmed to the unpadded box: a line that spans the whole crop (manga-ocr
                     // reads the crop as one unit) must not carry the padding into the erase rectangle.
                     val inPage = l.bbox.offset(r.left, r.top).clamp(bitmap.width, bitmap.height)
@@ -149,18 +163,23 @@ class ComicTextDetector @Inject constructor(
 
         val fromCrops = lines.size
         val ocrMs = System.currentTimeMillis() - ocrStart
-        // Recall backstop: anything ML Kit sees on the full page outside every container.
+        val kept = if (rejected.isEmpty()) boxes else boxes - rejected.toSet()
+        // Recall backstop: anything ML Kit sees on the full page outside every container. In a rejected box only what ML
+        // Kit is sure of counts: it reads nothing in art, but small print (credits, a watermark) it reads garbled, and
+        // says so (0.41–0.49 on a chapter's title page).
         for (line in backstop.await()) {
             val cx = line.bbox.centerX.toInt(); val cy = line.bbox.centerY.toInt()
-            val covered = boxes.any { it.bbox.contains(cx, cy) || it.bbox.overlapFraction(line.bbox) >= BACKSTOP_OVERLAP }
+            val inRejected = rejected.any { it.bbox.contains(cx, cy) || it.bbox.overlapFraction(line.bbox) >= BACKSTOP_OVERLAP }
+            if (inRejected && line.confidence < MIN_FREE_CONFIDENCE) continue
+            val covered = kept.any { it.bbox.contains(cx, cy) || it.bbox.overlapFraction(line.bbox) >= BACKSTOP_OVERLAP }
             if (!covered) lines += line
         }
         android.util.Log.i(
             TAG, "boxes=${boxes.size} (bubble=${boxes.count { it.kind == BoxKind.BUBBLE }} text=${boxes.count { it.kind == BoxKind.TEXT_BUBBLE }} " +
-                "free=${boxes.count { it.kind == BoxKind.TEXT_FREE }}, +${extra.size} missed in ${missedMs}ms) read=${targets.size} lines=$fromCrops via ${if (recognizer === mangaOcr) "manga-ocr" else "mlkit"} " +
-                "in ${ocrMs}ms +${lines.size - fromCrops} backstop",
+                "free=${boxes.count { it.kind == BoxKind.TEXT_FREE }}, +${extra.size} missed in ${missedMs}ms; detect ${detectMs}ms, first pass ${primaryMs}ms) read=${targets.size} lines=$fromCrops via ${if (recognizer === mangaOcr) "manga-ocr" else "mlkit"} " +
+                "in ${ocrMs}ms +${lines.size - fromCrops} backstop, ${rejected.size} unsure free-text read dropped",
         )
-        PageDetection(lines, boxes)
+        PageDetection(lines, kept)
     }
 
     /** Text boxes, plus any balloon that has no text box of its own. */
@@ -252,5 +271,16 @@ class ComicTextDetector @Inject constructor(
         private const val MIN_SIDE = 4
         private const val CROP_PAD = 0.06f
         private const val BACKSTOP_OVERLAP = 0.35f
+
+        /**
+         * manga-ocr's confidence (geometric mean of its token probabilities) below which a free-text box's reading is
+         * taken for speed lines, art or small print. On a chapter's debug dumps (2026-10-17) every real balloon and free
+         * line scored 0.87–1.00, and the false readings 0.62–0.73.
+         */
+        const val MIN_FREE_CONFIDENCE = 0.80f
+
+        /** A free-text box whose every line manga-ocr read with less than [MIN_FREE_CONFIDENCE]: not text. */
+        internal fun unsureFreeText(box: TextBox, read: List<TextLine>): Boolean =
+            box.kind == BoxKind.TEXT_FREE && read.isNotEmpty() && read.all { it.confidence < MIN_FREE_CONFIDENCE }
     }
 }

@@ -85,7 +85,9 @@ but took 4–20× longer and is 45× larger). So every page runs both.
 
 They join the comic detector's boxes as `text_free` and go through the same filters and recognizers. The model has no
 balloon class, so it complements the comic detector and never replaces it. On the Motorola Edge 60 Pro the pass takes
-about 350 ms per screen (590 ms at most); it is loaded with the reader's pre-warm.
+about 350 ms per screen (590 ms at most); it is loaded with the reader's pre-warm. The two detectors are independent
+(own sessions and locks, the bitmap only read) and run side by side; both use the CPU, so each slows a little, and
+together they took 650–1,100 ms per screen on the Motorola. The log line gives both: `detect …ms, first pass …ms`.
 
 ## Filtering before reading
 
@@ -121,6 +123,11 @@ BERT-style decoder (~140 MB, fp32), verified by SHA-256 on download.
 - Output is one line per crop, flagged vertical when the crop is taller than wide, with a `fontSizePx` hint derived
   from area per character (the box spans several columns, so its size says little about the glyphs).
 - Used for Japanese whenever it is installed. Its sessions are released under memory pressure.
+- It writes Japanese for any crop, and on speed lines, art and small print it invents a reading. Each reading carries
+  the model's confidence (geometric mean of the chosen tokens' probabilities): a **free-text** box read below 0.80
+  (`ComicTextDetector.MIN_FREE_CONFIDENCE`) is dropped, so nothing is translated or erased there, and ML Kit's
+  full-page pass may add a line inside it only when ML Kit is as sure. Measured on a chapter: real text 0.87–1.00,
+  false readings 0.41–0.73. Balloon text is never dropped.
 
 ### ML Kit on the crop (every other case)
 
@@ -182,6 +189,14 @@ because the detector takes only 1–2 s. The trade-off is that text the detector
 - **The region box is the union of its lines**, never the detector box: a loose detector box must not become an
   erase rectangle. The balloon itself is kept as `container`, the space the translation may use.
 - **The box class seeds the region kind**: text in a balloon is `ENCLOSED` whatever the pixels say.
+- **One region per balloon** (`DetectionStage.mergeSameBalloon`). Two text boxes in one balloon (a speech read as two
+  columns: 見せてやる！ and この力が…) become one region in reading order. Each used to be erased with the whole
+  balloon and gave a patch over the same rectangle; the reader kept one patch and the second sentence vanished, its
+  Japanese erased. The balloon's box may be smaller than the lettering (a spiky shout's text reaches into the
+  spikes), so membership comes from the text box's centre. Text far apart in one box (two balloons the detector
+  boxed as one) stays apart: the boxes of one balloon span at most 1.5× their summed sizes.
+- **Nested readings** (`DetectionStage.dropNested`). A region inside a larger one that already holds its text (…あなた
+  inside …あなたどうして…!) is dropped, so a balloon is not lettered twice.
 
 ## Region classification
 
@@ -209,7 +224,8 @@ On-device engines receive bubbles in this order, in groups of 4.
 ## Tuning and measuring
 
 - **ONNX Runtime options.** Both models share `OrtCpu.options` (ORT 1.22, CPU/MLAS). XNNPACK is available but off: it
-  was slower on the x86 emulator for both models. To measure on a phone:
+  was slower on the x86 emulator for both models, and on the Motorola Edge 60 Pro too (2026-10-17: detector 314 →
+  498–547 ms, manga-ocr encoder 46 → 112–124 ms). To measure on a phone:
   `adb shell run-as com.smnexstudio.panelglass.debug touch files/debug-ortbench`, open the reader, then
   `adb logcat -s OrtBench` for median timings per option set. Remove the file afterwards.
 - **What a run saw.** The debug dump (see [FLOW.md](FLOW.md#diagnostics)) lists every region's kind, box, text and

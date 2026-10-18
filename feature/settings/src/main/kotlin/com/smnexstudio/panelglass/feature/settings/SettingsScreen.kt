@@ -137,8 +137,7 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
     var notesDialog by remember { mutableStateOf(false) }
     var sfxPicker by remember { mutableStateOf(false) }
     val sfxNames = mapOf(
-        SfxMode.SKIP to stringResource(UiR.string.studio_sfx_keep), SfxMode.GLOSS to stringResource(UiR.string.studio_sfx_gloss),
-        SfxMode.OVERLAY to stringResource(UiR.string.studio_sfx_overlay), SfxMode.REPLACE to stringResource(UiR.string.studio_sfx_replace),
+        SfxMode.SKIP to stringResource(UiR.string.studio_sfx_keep), SfxMode.REPLACE to stringResource(UiR.string.studio_sfx_replace),
     )
     val studioStorage by vm.studioStorage.collectAsStateWithLifecycle()
     var deletingManga by remember { mutableStateOf<MangaStorage?>(null) }

@@ -35,4 +35,14 @@ class TranslationNotesTest {
         val long = "x".repeat(TranslationNotes.MAX_CHARS + 50)
         assertEquals(TranslationNotes.MAX_CHARS * 2 + 1, TranslationNotes.compose(emptyList(), long, long).length)
     }
+
+    @Test
+    fun aGlossaryTermIsTrimmedAndCut() {
+        val long = "x".repeat(GlossaryEntry.MAX_CHARS + 40)
+        val e = term("  ミナ  ", long).capped()
+        assertEquals("ミナ", e.source)
+        assertEquals(GlossaryEntry.MAX_CHARS, e.target.length)
+        // A name is untouched.
+        assertEquals(term("ミナ", "Mina"), term("ミナ", "Mina").capped())
+    }
 }

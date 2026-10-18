@@ -46,10 +46,11 @@ class SfxCacheRepository @Inject constructor(private val db: PanelglassDb) {
 @Singleton
 class GlossaryRepository @Inject constructor(private val db: PanelglassDb) {
     fun observe(seriesKey: String): Flow<List<GlossaryEntry>> = db.glossary().observe(seriesKey)
+    // Read capped too: a term saved before GlossaryEntry.MAX_CHARS existed reaches the engines no longer than that.
     suspend fun forSeries(seriesKey: String): Map<String, String> =
-        db.glossary().forSeries(seriesKey).associate { it.source to it.target }
-    suspend fun entries(seriesKey: String): List<GlossaryEntry> = db.glossary().forSeries(seriesKey)
-    suspend fun upsert(entry: GlossaryEntry) = db.glossary().upsert(entry)
+        entries(seriesKey).associate { it.source to it.target }
+    suspend fun entries(seriesKey: String): List<GlossaryEntry> = db.glossary().forSeries(seriesKey).map { it.capped() }
+    suspend fun upsert(entry: GlossaryEntry) = db.glossary().upsert(entry.capped())
     suspend fun delete(entry: GlossaryEntry) = db.glossary().delete(entry)
 
     fun observeNotes(seriesKey: String): Flow<String?> = db.seriesNotes().observe(seriesKey)

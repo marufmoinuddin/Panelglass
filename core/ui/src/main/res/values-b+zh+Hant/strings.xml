@@ -450,12 +450,8 @@
     </plurals>
     <string name="studio_sfx_title">音效</string>
     <string name="studio_sfx_keep">保留</string>
-    <string name="studio_sfx_gloss">註解</string>
-    <string name="studio_sfx_overlay">疊加</string>
     <string name="studio_sfx_replace">取代</string>
     <string name="studio_sfx_keep_note">原音效保持不變。</string>
-    <string name="studio_sfx_gloss_note">在原音效旁加上小字譯文。</string>
-    <string name="studio_sfx_overlay_note">在原音效上繪製譯文。在頁面上拖曳可移動，用上方控點旋轉，用角落調整大小。</string>
     <string name="studio_sfx_replace_note">擦除原音效並在原處繪製譯文。在頁面上拖曳可移動，用上方控點旋轉，用角落調整大小。</string>
     <string name="studio_sfx_presets">預設</string>
     <string name="studio_sfx_preset_impact">衝擊</string>
@@ -632,7 +628,6 @@
     <string name="update_available_title">有可用的更新</string>
     <string name="update_available_message">Panelglass %1$s 已推出。你目前的版本是 %2$s。</string>
     <string name="update_action">更新</string>
-    <string name="update_skip">略過這個版本</string>
     <string name="update_later">稍後</string>
     <string name="update_downloading">正在下載更新…</string>
     <string name="update_progress">%1$s / %2$s</string>

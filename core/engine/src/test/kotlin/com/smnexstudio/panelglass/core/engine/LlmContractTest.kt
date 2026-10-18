@@ -149,4 +149,14 @@ class LlmContractTest {
         assertEquals(null, EngineRetry.delayFor(EngineFailure.Unavailable(EngineId.GEMINI), 1))
         assertEquals(null, EngineRetry.delayFor(EngineFailure.MissingKey(EngineId.GEMINI), 1))
     }
+
+    @Test
+    fun theReplyBudgetGrowsWithTheItemsUpToACap() {
+        assertEquals(420, LlmContract.outputBudget(1))
+        assertEquals(1500, LlmContract.outputBudget(10))
+        // A full batch (60 items) fits under the cap; more would be capped.
+        assertEquals(7500, LlmContract.outputBudget(60))
+        assertEquals(LlmContract.MAX_OUTPUT_TOKENS, LlmContract.outputBudget(70))
+        assertEquals(420, LlmContract.outputBudget(0))
+    }
 }
