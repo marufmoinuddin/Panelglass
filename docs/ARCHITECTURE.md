@@ -249,6 +249,7 @@ flowchart LR
 | Google Translate | `GOOGLE` | On device (ML Kit translation) | No |
 | Qwen 2.5 1.5B | `QWEN15_LOCAL` | On device (LiteRT-LM) | No |
 | Gemma 4 E2B | `GEMMA4_LOCAL` | On device (LiteRT-LM), 8 GB RAM devices | No |
+| The user's own model | `LOCAL_USER` | On device (LiteRT-LM), from the user's library | No |
 
 Claude, OpenAI, OpenRouter, DeepSeek, DeepL and Papago exist in code as `@PlannedEngine` placeholders: hidden from
 the picker and refused by the registry.

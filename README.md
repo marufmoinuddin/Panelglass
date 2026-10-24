@@ -137,6 +137,7 @@ lettered pages, or the clean pages without any text.
   | **Google Translate** | On device (ML Kit) | Nothing (~30 MB language packs) | Free and offline |
   | **Qwen 2.5 1.5B** | On device (LiteRT-LM; GPU, or CPU on phones under 6 GB) | One-time 1.6 GB download | Offline LLM translation |
   | **Gemma 4 E2B** | On device (LiteRT-LM, GPU when available) | One-time 2.6 GB download, 8 GB RAM | Offline LLM translation, higher quality |
+  | **Offline model** | On device (LiteRT-LM), your own file | The model you add | Any LiteRT-LM model you bring yourself |
 
 - **Built for comics.** A bundled comic text and bubble detector finds the lettering, and a second detector
   (PP-OCRv6) catches what it misses, above all brush-lettered sound effects; vertical Japanese is read by the optional
@@ -279,12 +280,19 @@ Panelglass is not on Google Play. Each release is published on GitHub:
      *downloaded*. Qwen runs on the GPU, or on the CPU on phones under 6 GB of RAM (about 3× slower, but far less
      memory); **Settings → Models → Qwen runs on** changes it ([details](docs/MEMORY_USAGE.md)).
 3. For Japanese with an offline engine, also download **Japanese manga OCR** (140 MB).
-4. Choose what happens to **Sound effects** (Keep or Replace) and, for Gemini or an on-device model,
+4. **Your own offline model.** Settings › Models › **Browse models** searches the Hugging Face catalogue of
+   LiteRT-LM models (or type `owner/name` to list a repository directly); pick a `.litertlm` file, confirm, and wait
+   for the download. **Import from file** adds a `.litertlm` file you already have on the phone. Tap **Use** on a
+   model, then pick **Offline model** in the engine picker. Only the LiteRT-LM format works (the format the bundled
+   runtime loads) — GGUF and llama.cpp files do not. A gated model needs a Hugging Face account: download it in a
+   browser and import the file. How well a model translates depends on the model itself; the context budget comes
+   from the file's own KV cache (`ekv…` in its name) and may only be lowered.
+5. Choose what happens to **Sound effects** (Keep or Replace) and, for Gemini or an on-device model,
    add a few **Translation notes** ([suggested notes](docs/TRANSLATION_QUALITY.md#translation-notes)).
-5. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
+6. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
    **Stop** ends translation; **⋮ → Re-translate** reads the current screen again from scratch; **⋮ → Glossary &
    pronouns** sets the series' character names and pronouns.
-6. For files you already have, open the **Studio** tab and tap **Import** ([how it works](#studio-translate-your-own-chapters)).
+7. For files you already have, open the **Studio** tab and tap **Import** ([how it works](#studio-translate-your-own-chapters)).
 
 ### Build from source
 

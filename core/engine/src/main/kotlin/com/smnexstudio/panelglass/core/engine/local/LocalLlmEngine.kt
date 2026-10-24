@@ -9,11 +9,13 @@ import com.smnexstudio.panelglass.core.model.EngineException
 import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.Lang
+import com.smnexstudio.panelglass.core.model.ModelSpec
 import com.smnexstudio.panelglass.core.model.RegionItem
 import com.smnexstudio.panelglass.core.model.RegionKind
 import com.smnexstudio.panelglass.core.model.TextNorm
 import com.smnexstudio.panelglass.core.model.TranslateRequest
 import com.smnexstudio.panelglass.core.model.TranslatedItem
+import com.smnexstudio.panelglass.core.model.UserModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -49,11 +51,38 @@ interface LlmRunner {
  * Every on-device model, sharing one lock: the phone holds one LLM at a time, so loading one releases the others.
  */
 @Singleton
-class LocalEngines @Inject constructor(@ApplicationContext private val context: Context, stores: ModelStores) {
+class LocalEngines @Inject constructor(@ApplicationContext private val context: Context, private val stores: ModelStores) {
     private val lock = Mutex()
-    val all: List<LocalLlmEngine> = LocalModel.entries.map { LocalLlmEngine(context, stores[it], it, lock, { all }, ::callEnded) }
+    /** The user's own models: one engine each, created when the model is first used. */
+    private val userEngines = HashMap<String, LocalLlmEngine>()
+
+    /** The engine behind [EngineId.LOCAL_USER]: it runs whichever of the user's own models is active. */
+    val userEngine: OfflineModelEngine = OfflineModelEngine(this, stores)
+
+    /** The built-in models plus the user's own: every engine that holds a runtime. */
+    private fun snapshot(): List<LocalLlmEngine> = all + userEngines.values.toList()
+
+    val all: List<LocalLlmEngine> = LocalModel.entries.map { LocalLlmEngine(context, stores[it], it, lock, { snapshot() }, ::callEnded) }
 
     operator fun get(model: LocalModel): LocalLlmEngine = all.first { it.model == model }
+
+    /**
+     * The engine of a user's own model; the same one every time, so its runtime is not loaded twice.
+     */
+    fun forUser(m: UserModel): LocalLlmEngine = synchronized(userEngines) {
+        userEngines.getOrPut(m.id) {
+            LocalLlmEngine(context, stores.forUser(m), m, lock, { snapshot() }, ::callEnded).also { e ->
+                // A model added after the settings were bound follows the same backend choice as Qwen.
+                settings?.let { e.cpuOnly = cpuOnlyFor(it) }
+            }
+        }
+    }
+
+    /** Forgets a user's own model and releases its runtime. */
+    fun dropUser(id: String) {
+        val engine = synchronized(userEngines) { userEngines.remove(id) }
+        engine?.release()
+    }
 
     /**
      * Settings › Models › Qwen runs on, read at each load. Method-injected (Hilt calls it after construction) so the
@@ -62,10 +91,25 @@ class LocalEngines @Inject constructor(@ApplicationContext private val context: 
     @Inject
     fun bindSettings(settings: SettingsRepository) {
         this[LocalModel.QWEN15].cpuOnly = { DeviceMemory.qwenOnCpu(context, settings.current().qwenBackend) }
+        this.settings = settings
+        // The "Offline model" engine runs whichever of the user's own models is active.
+        userEngine.activeModel = { settings.activeUserModel() }
+        // The user's own models follow the same backend choice as Qwen.
+        synchronized(userEngines) { userEngines.values.forEach { it.cpuOnly = cpuOnlyFor(settings) } }
     }
 
+    /** The backend choice a user's own model loads with. */
+    private fun cpuOnlyFor(settings: SettingsRepository): suspend () -> Boolean =
+        { DeviceMemory.qwenOnCpu(context, settings.current().qwenBackend) }
+
+    /** The settings, once [bindSettings] has run; null in unit tests that never bind them. */
+    @Volatile private var settings: SettingsRepository? = null
+
     /** Memory pressure: unload whatever is idle; each reloads lazily on its next call. */
-    fun releaseIfIdle() = all.forEach { it.releaseIfIdle() }
+    fun releaseIfIdle() {
+        all.forEach { it.releaseIfIdle() }
+        synchronized(userEngines) { userEngines.values.forEach { it.releaseIfIdle() } }
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var hidden = false
@@ -116,7 +160,7 @@ class LocalEngines @Inject constructor(@ApplicationContext private val context: 
 class LocalLlmEngine(
     private val context: Context,
     private val store: ModelStore,
-    val model: LocalModel = store.model,
+    val model: ModelSpec = store.model,
     private val lock: Mutex = Mutex(),
     private val siblings: () -> List<LocalLlmEngine> = { emptyList() },
     /** After every warm-up or translation, once the lock is free again ([LocalEngines] releases a hidden app's model). */
@@ -201,7 +245,7 @@ class LocalLlmEngine(
     private suspend fun translateChunk(r: LlmRunner, req: TranslateRequest): List<TranslatedItem> {
         val reply = run(r, LocalPrompt.chat(LocalPrompt.system(req), LocalPrompt.payload(req.items))) { LocalPrompt.replyComplete(it, req.items) }
         val got = LocalPrompt.parse(reply, req.items, req.tgt)
-        if (got.size < req.items.size) android.util.Log.i(TAG, "${model.name}: reply covered ${got.size}/${req.items.size} items")
+        if (got.size < req.items.size) android.util.Log.i(TAG, "${model.key}: reply covered ${got.size}/${req.items.size} items")
         return req.items.map { item -> TranslatedItem(item.i, got[item.i] ?: plain(r, item, req)) }
     }
 
