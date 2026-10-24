@@ -3,7 +3,7 @@
 What the automated tests cover, how to run them, and the checks that still need a phone. The architecture under test
 is in [ARCHITECTURE.md](ARCHITECTURE.md); the translation flow in [FLOW.md](FLOW.md).
 
-Counts as of 2026-10-02: **368 unit tests** in 59 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-24: **398 unit tests** in 61 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -48,7 +48,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 
 ## Unit tests by module
 
-### core:model (29)
+### core:model (51)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -58,6 +58,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `NaturalSortTest` | 6 | Page order by file name: numbers by value (`2` before `10`, `p9` before `p10`), zero padding, case ignored, several number runs, runs longer than a Long |
 | `SiteMatchTest` | 5 | Which saved site owns a URL: subdomains, segment-boundary prefixes, several sites on one host |
 | `WebUrlTest` | 6 | https only: https kept, http upgraded, a bare host gets `https://`, whitespace trimmed; `javascript:`/`file:`/`content:`/`intent:`/`data:` and non-URLs are null |
+| `CustomEndpointTest` | 18 | The "Custom AI" server address: a base is kept as written; whitespace trimmed; a pasted `…/chat/completions` (with or without a trailing slash) is reduced to its base; any version path is preserved and `/v1` is never added; blank, scheme-less, host-less, spaced, query, fragment, other-scheme and credential-bearing addresses are null; plain http is refused unless the test switch allows it |
 
 ### core:data (25)
 
@@ -68,12 +69,13 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `PatchCacheTest` | 5 | Round-trip of patch geometry and bytes; LRU eviction over budget; a corrupt file is dropped, not thrown; an out-of-range length is refused before allocating and the file deleted; the key includes everything that changes rendering, the reader's font too |
 | `SystemDownloadsIntegrityTest` | 4 | A download matching its SHA-256 is moved into place and remembered; a mismatch is deleted, never placed; a file already on disk is checked once; a file changed after its check is checked again |
 
-### core:engine (72)
+### core:engine (88)
 
 | Class | Tests | Covers |
 |---|---|---|
-| `RegistryAndQwenTest` | 28 | **Engine selection:** the default is Google Translate; only Gemini, Google Translate and the on-device models are offered; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Qwen runs on* reloads Qwen on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
+| `RegistryAndQwenTest` | 28 | **Engine selection:** the default is Google Translate; only Gemini, Custom AI, Google Translate and the on-device models are offered; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Qwen runs on* reloads Qwen on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
 | `ProviderEngineTest` | 9 | Against MockWebServer: 401 → `MissingKey`; a missing key never reaches the network; Gemini steps down past a request option a model refuses and remembers it; display names resolve to ids, Gemma models get no Gemini-only options; the model list keeps text models, Gemini first; OpenAI / OpenRouter send the user's model and key |
+| `CustomOpenAiEngineTest` | 12 | The "Custom AI" engine against MockWebServer: the user's model and key reach the configured server at `<base>/chat/completions`; a pasted full address is not appended twice; the path the user wrote is the path called; the request is text only (no image, no base64); a missing key, a missing model and a missing address are typed failures that never reach the network; a plain http address is refused in production; a server that refuses `temperature` is asked once more without it, and twice-refused is a typed failure; 401 → `MissingKey` |
 | `LlmContractTest` | 8 | The cloud JSON contract: strict and tolerant parsing (prose, code fences), length mismatch and garbage are `Malformed`; HTTP status mapping, Gemini "high demand" is `Overloaded` with the provider's message; the retry policy is bounded and capped; glossary and montage mapping in the prompt |
 | `GoogleTranslateEngineTest` | 9 | ML Kit translation behind its seam: every item translated, pack downloaded once; a pack the user has not downloaded is a typed `PackMissing` and nothing is fetched; glossary terms before and after; names learned in one request apply to the next; Japanese prepared first, Korean passed through; an echoed sound word romanised for Latin targets; a failed pack download is a typed `Unavailable` |
 | `JaPrepTest` | 7 | Japanese preparation for ML Kit: names found by honorific, whole-bubble and repetition (a loanword seen twice is not a name); names and honorifics swapped; casual negatives standardised; romaji for names and sound words |
@@ -93,7 +95,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `UprightTiltTest` | 3 | ML Kit's angle as a tilt from upright: a vertical column (±90°) and upside-down text are upright; a real tilt is kept |
 | `PanelCutterTest` | 2 | Synthetic panels detected and regions ordered by panel, right to left for manga |
 
-### core:render (43)
+### core:render (52)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -117,7 +119,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `ContentChangeTest` | 4 | Page turn without a scroll: another page is a change; our own patches and a fading control are not; all-patched cannot tell |
 | `SameSiteTest` | 3 | Same-site test for pop-ups: subdomains share a site, public suffixes do not; case and trailing dot ignored |
 
-### feature:studio (100)
+### feature:studio (116)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -168,6 +170,7 @@ com.smnexstudio.panelglass` after installing.
 | Check | How | Pass when |
 |---|---|---|
 | Screen translation, each engine | `am start -n com.smnexstudio.panelglass/.MainActivity --es url <chapter> --es engine <ENGINE_ID> --ez start true` (`--es src JA --es tgt HI` for a language sweep) | Bubbles are replaced in place; `adb logcat -s TranslationPipeline` shows a `timing` line per screen |
+| Custom AI engine | Settings › Translation model › Custom AI: enter a key, a model and the server's address; save; pick the engine and translate. Repeat with a pasted `…/chat/completions` address | The bubbles are translated by that server; the address is kept as typed; a plain `http://` address is refused; no image is sent (the request body carries text only) |
 | On-device backend | Settings › Models › *Qwen runs on* → GPU / CPU, then open the reader | `LiteRT-LM loaded on gpu` / `on cpu` in `adb logcat -s LocalLlmEngine` |
 | Memory per engine and state | [MEMORY_USAGE.md › Reproducing](MEMORY_USAGE.md#reproducing) | Figures in line with that document; no process killed while translating |
 | Model released in the background | Start translating, press Home mid-generation, poll `dumpsys meminfo` | `UI hidden: releasing the model after its last call` ~5 s after the last `generate` line; PSS back to ~0.5 GB |
@@ -194,8 +197,8 @@ sites; ⋮ › *Reload* loads it.
 ## Not covered
 
 - **The real LiteRT-LM runtime, GPU and CPU**, and the real manga-ocr / detector sessions: only on a phone.
-- **Live provider APIs** (Gemini): MockWebServer only; the emulator's HTTPS to providers is intercepted on the
-  development machine, so real calls need a phone.
+- **Live provider APIs** (Gemini, and a user's own "Custom AI" server): MockWebServer only; the emulator's HTTPS to
+  providers is intercepted on the development machine, so real calls need a phone.
 - **Compose UI**: only the Studio's drag-to-reorder and review-canvas gestures (`GridReorderTest`, `PageCanvasGestureTest`). Settings, the reader, the site dialogs and the Studio screens are checked by hand.
 - **`mt.js` / `pt.js`**: the page scripts have no JavaScript tests; their Kotlin sides (anchoring, change detection)
   are unit-tested.
