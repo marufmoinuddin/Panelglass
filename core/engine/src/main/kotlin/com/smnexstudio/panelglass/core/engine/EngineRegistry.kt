@@ -45,7 +45,7 @@ class EngineRegistry @Inject constructor(
     private val settings: SettingsRepository,
 ) : EngineResolver {
     private val engines: Map<EngineId, TranslationEngine> =
-        (listOf(gemini, custom, claude, openAi, deepL, papago, deepSeek, google, openRouter) + locals.all).associateBy { it.id }
+        (listOf(gemini, custom, claude, openAi, deepL, papago, deepSeek, google, openRouter) + locals.all + locals.userEngine).associateBy { it.id }
 
     val all: List<TranslationEngine> get() = EngineId.entries.mapNotNull { engines[it] }
 

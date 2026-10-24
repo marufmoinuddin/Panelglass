@@ -100,7 +100,8 @@ class RegistryAndQwenTest {
     @Test
     fun onlyGeminiGoogleCustomAndOnDeviceModelsAreOfferedAndAPlannedEngineNeverResolves() = runBlocking {
         assertEquals(
-            setOf(EngineId.QWEN15_LOCAL, EngineId.GEMMA4_LOCAL, EngineId.GEMINI, EngineId.GOOGLE, EngineId.CUSTOM),
+            // The user's own model is offered too: it is the "Offline model" engine.
+            setOf(EngineId.QWEN15_LOCAL, EngineId.GEMMA4_LOCAL, EngineId.LOCAL_USER, EngineId.GEMINI, EngineId.GOOGLE, EngineId.CUSTOM),
             EngineId.entries.filter { it.offered }.toSet(),
         )
         // Selected in an older version, key and all: it says so instead of quietly becoming another engine.
