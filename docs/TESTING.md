@@ -4,10 +4,14 @@ What the automated tests cover, how to run them, and the checks that still need 
 is in [ARCHITECTURE.md](ARCHITECTURE.md); the translation flow in [FLOW.md](FLOW.md).
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 Counts as of 2026-10-18: **436 unit tests** in 75 classes, **2 instrumented tests**, all passing.
 =======
 Counts as of 2026-10-24: **425 unit tests** in 65 classes, **2 instrumented tests**, all passing.
 >>>>>>> 24f1d15 (Add an offline-model library: browse, download, import and switch)
+=======
+Counts as of 2026-10-25: **440 unit tests** in 67 classes, **2 instrumented tests**, all passing.
+>>>>>>> bf9da39 (Add compute backend setting (Automatic, CPU, GPU) for all on-device models)
 
 ## Contents
 
@@ -80,14 +84,18 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `SystemDownloadsIntegrityTest` | 4 | A download matching its SHA-256 is moved into place and remembered; a mismatch is deleted, never placed; a file already on disk is checked once; a file changed after its check is checked again |
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ### core:engine (82)
 =======
 ### core:engine (115)
 >>>>>>> 24f1d15 (Add an offline-model library: browse, download, import and switch)
+=======
+### core:engine (130)
+>>>>>>> bf9da39 (Add compute backend setting (Automatic, CPU, GPU) for all on-device models)
 
 | Class | Tests | Covers |
 |---|---|---|
-| `RegistryAndQwenTest` | 28 | **Engine selection:** the default is Google Translate; only Gemini, Custom AI, Google Translate and the on-device models (including the user's own) are offered; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Qwen runs on* reloads Qwen on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
+| `RegistryAndQwenTest` | 30 | **Engine selection:** the default is Google Translate; only Gemini, Custom AI, Google Translate and the on-device models (including the user's own) are offered; changing the backend reloads Qwen *and* Gemma 4; what actually ran is reported; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Run models on* reloads a model on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
 | `ProviderEngineTest` | 9 | Against MockWebServer: 401 → `MissingKey`; a missing key never reaches the network; Gemini steps down past a request option a model refuses and remembers it; display names resolve to ids, Gemma models get no Gemini-only options; the model list keeps text models, Gemini first; OpenAI / OpenRouter send the user's model and key |
 <<<<<<< HEAD
 | `LlmContractTest` | 15 | The cloud JSON contract: strict and tolerant parsing (prose, code fences), length mismatch and garbage are `Malformed`; HTTP status mapping, Gemini "high demand" is `Overloaded` with the provider's message; the retry policy is bounded and capped; glossary and montage mapping in the prompt; the reader's notes reach the cloud, on-device and per-item prompts and survive `withItems`; an on-device reply that repeats the source before its translation is cut to the translation, an ordinary colon is kept; a line holding another writing system than the target's (もちろん, गहराई in English) is retried, then its foreign words are cut; the reply's output-token budget grows with the items (300 + 120 each) up to 8,192 |
@@ -98,6 +106,8 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `UserModelTest` | 7 | A user's own model: the context budget is read from the file name (`ekv4096` → 4096, absent → 2048) and clamped to 512..32768; the file name is built from the id and never contains a path; hub and imported ids differ; the model survives a JSON round trip (an unknown field is ignored); it runs on the `LOCAL_USER` engine; a truncated file is refused |
 | `UserModelLibraryTest` | 7 | The model library (Robolectric): the list is saved and read back; an empty list is saved as none; corrupt JSON reads as an empty library; the active model is set and cleared; an active model that is gone reads as no model; the same model twice is refused; only a Hugging Face address is ever downloaded |
 | `OfflineModelEngineTest` | 5 | The "Offline model" engine (Robolectric): without an active model, and with an active model whose file is not there, the failure is `ModelMissing`; a model whose file is really on the phone translates through its own engine with the on-device prompt; it is text only; the same model keeps the same engine |
+| `BackendPlannerTest` | 8 | The rule that turns the user's choice into the order the backends are tried in: Automatic takes the CPU on a phone with little RAM and the GPU otherwise, and never the NPU; CPU is the only backend; GPU falls back to the CPU; an emulator always uses the CPU; the NPU is tried first when it can be used, and each unusable status falls back to the GPU with the matching note |
+| `ComputeBackendSettingTest` | 5 | The backend setting: Automatic by default; the old Qwen-only choice becomes the new one (every old value has a matching new one); the new choice wins over the old one; the choice is saved and read back |
 | `LlmContractTest` | 8 | The cloud JSON contract: strict and tolerant parsing (prose, code fences), length mismatch and garbage are `Malformed`; HTTP status mapping, Gemini "high demand" is `Overloaded` with the provider's message; the retry policy is bounded and capped; glossary and montage mapping in the prompt |
 >>>>>>> 24f1d15 (Add an offline-model library: browse, download, import and switch)
 | `GoogleTranslateEngineTest` | 9 | ML Kit translation behind its seam: every item translated, pack downloaded once; a pack the user has not downloaded is a typed `PackMissing` and nothing is fetched; glossary terms before and after; names learned in one request apply to the next; Japanese prepared first, Korean passed through; an echoed sound word romanised for Latin targets; a failed pack download is a typed `Unavailable` |
@@ -201,8 +211,14 @@ com.smnexstudio.panelglass.debug` after installing.
 
 | Check | How | Pass when |
 |---|---|---|
+<<<<<<< HEAD
 | Screen translation, each engine | `am start -n com.smnexstudio.panelglass.debug/com.smnexstudio.panelglass.MainActivity --es url <chapter> --es engine <ENGINE_ID> --ez start true` (`--es src JA --es tgt HI` for a language sweep) | Bubbles are replaced in place; `adb logcat -s TranslationPipeline` shows a `timing` line per screen |
 | On-device backend | Settings › Models › *Qwen runs on* → GPU / CPU, then open the reader | `LiteRT-LM loaded on gpu` / `on cpu` in `adb logcat -s LocalLlmEngine` |
+=======
+| Screen translation, each engine | `am start -n com.smnexstudio.panelglass/.MainActivity --es url <chapter> --es engine <ENGINE_ID> --ez start true` (`--es src JA --es tgt HI` for a language sweep) | Bubbles are replaced in place; `adb logcat -s TranslationPipeline` shows a `timing` line per screen |
+| Custom AI engine | Settings › Translation model › Custom AI: enter a key, a model and the server's address; save; pick the engine and translate. Repeat with a pasted `…/chat/completions` address | The bubbles are translated by that server; the address is kept as typed; a plain `http://` address is refused; no image is sent (the request body carries text only) |
+| On-device backend | Settings › Models › *Run models on* → GPU / CPU, then open the reader | `LiteRT-LM loaded on gpu` / `on cpu` in `adb logcat -s LocalLlmEngine` |
+>>>>>>> bf9da39 (Add compute backend setting (Automatic, CPU, GPU) for all on-device models)
 | Memory per engine and state | [MEMORY_USAGE.md › Reproducing](MEMORY_USAGE.md#reproducing) | Figures in line with that document; no process killed while translating |
 | Model released in the background | Start translating, press Home mid-generation, poll `dumpsys meminfo` | `UI hidden: releasing the model after its last call` ~5 s after the last `generate` line; PSS back to ~0.5 GB |
 | Page turns, rotation, slow pages | A paged reader (tap to turn), rotate, a slow image host | Old patches cleared and the new page translated; `ScreenSession` log lines |

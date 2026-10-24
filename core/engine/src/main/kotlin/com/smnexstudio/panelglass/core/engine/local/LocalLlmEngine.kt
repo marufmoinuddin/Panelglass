@@ -10,6 +10,7 @@ import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.ModelSpec
+import com.smnexstudio.panelglass.core.model.ComputeBackend
 import com.smnexstudio.panelglass.core.model.RegionItem
 import com.smnexstudio.panelglass.core.model.RegionKind
 import com.smnexstudio.panelglass.core.model.TextNorm
@@ -23,6 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,8 +47,17 @@ interface LlmRunner {
     suspend fun complete(prompt: ChatPrompt, done: (String) -> Boolean): String = complete(prompt)
     /** Token count of [text] by the model's own tokenizer, or null when the runner cannot count. */
     fun tokens(text: String): Int? = null
+    /** The backend that actually ran: "npu", "gpu" or "cpu"; null when the runner does not say. */
+    val backendName: String? get() = null
+    /** Why the backend that ran is not the one that was asked for, when it is not. */
+    val backendNote: BackendNote get() = BackendNote.NONE
     fun close() {}
 }
+
+/**
+ * What ran last: what the user asked for, what actually ran, and why they differ. The Settings screen shows it.
+ */
+data class BackendReport(val requested: ComputeBackend, val used: String, val note: BackendNote)
 
 /**
  * Every on-device model, sharing one lock: the phone holds one LLM at a time, so loading one releases the others.
@@ -62,7 +74,19 @@ class LocalEngines @Inject constructor(@ApplicationContext private val context: 
     /** The built-in models plus the user's own: every engine that holds a runtime. */
     private fun snapshot(): List<LocalLlmEngine> = all + userEngines.values.toList()
 
-    val all: List<LocalLlmEngine> = LocalModel.entries.map { LocalLlmEngine(context, stores[it], it, lock, { snapshot() }, ::callEnded) }
+    /** What ran last: what was asked for, what ran, and why they differ. */
+    private val _lastBackend = MutableStateFlow<BackendReport?>(null)
+    val lastBackend: StateFlow<BackendReport?> = _lastBackend
+
+    /** Records what a model actually ran on. */
+    private fun loaded(choice: ComputeBackend, used: String?, note: BackendNote) {
+        if (used == null) return
+        _lastBackend.value = BackendReport(choice, used, note)
+    }
+
+    val all: List<LocalLlmEngine> = LocalModel.entries.map {
+        LocalLlmEngine(context, stores[it], it, lock, { snapshot() }, ::callEnded, ::loaded)
+    }
 
     operator fun get(model: LocalModel): LocalLlmEngine = all.first { it.model == model }
 
@@ -71,9 +95,9 @@ class LocalEngines @Inject constructor(@ApplicationContext private val context: 
      */
     fun forUser(m: UserModel): LocalLlmEngine = synchronized(userEngines) {
         userEngines.getOrPut(m.id) {
-            LocalLlmEngine(context, stores.forUser(m), m, lock, { snapshot() }, ::callEnded).also { e ->
-                // A model added after the settings were bound follows the same backend choice as Qwen.
-                settings?.let { e.cpuOnly = cpuOnlyFor(it) }
+            LocalLlmEngine(context, stores.forUser(m), m, lock, { snapshot() }, ::callEnded, ::loaded).also { e ->
+                // A model added after the settings were bound follows the same backend choice as the built-in models.
+                settings?.let { e.backendChoice = { it.current().computeBackend } }
             }
         }
     }
@@ -90,17 +114,13 @@ class LocalEngines @Inject constructor(@ApplicationContext private val context: 
      */
     @Inject
     fun bindSettings(settings: SettingsRepository) {
-        this[LocalModel.QWEN15].cpuOnly = { DeviceMemory.qwenOnCpu(context, settings.current().qwenBackend) }
         this.settings = settings
+        // Every on-device model runs where the user asked: Qwen, Gemma 4 and their own models alike.
+        all.forEach { it.backendChoice = { settings.current().computeBackend } }
         // The "Offline model" engine runs whichever of the user's own models is active.
         userEngine.activeModel = { settings.activeUserModel() }
-        // The user's own models follow the same backend choice as Qwen.
-        synchronized(userEngines) { userEngines.values.forEach { it.cpuOnly = cpuOnlyFor(settings) } }
+        synchronized(userEngines) { userEngines.values.forEach { it.backendChoice = { settings.current().computeBackend } } }
     }
-
-    /** The backend choice a user's own model loads with. */
-    private fun cpuOnlyFor(settings: SettingsRepository): suspend () -> Boolean =
-        { DeviceMemory.qwenOnCpu(context, settings.current().qwenBackend) }
 
     /** The settings, once [bindSettings] has run; null in unit tests that never bind them. */
     @Volatile private var settings: SettingsRepository? = null
@@ -165,6 +185,8 @@ class LocalLlmEngine(
     private val siblings: () -> List<LocalLlmEngine> = { emptyList() },
     /** After every warm-up or translation, once the lock is free again ([LocalEngines] releases a hidden app's model). */
     private val onCallEnded: () -> Unit = {},
+    /** After a model loads: what was asked for, what ran, and why they differ. */
+    private val onLoaded: (ComputeBackend, String?, BackendNote) -> Unit = { _, _, _ -> },
 ) : TranslationEngine {
     override val id: EngineId = model.engineId
     override val acceptsImages = false
@@ -172,16 +194,22 @@ class LocalLlmEngine(
 
     private var runner: LlmRunner? = null
 
-    /** Whether to skip the GPU backend; asked at every load, so a changed setting applies on the next call. */
-    var cpuOnly: suspend () -> Boolean = { false }
+    /** Where the user wants the models to run; asked at every load, so a changed setting applies on the next call. */
+    var backendChoice: suspend () -> ComputeBackend = { ComputeBackend.GPU }
     /** The backend choice the next [runnerFactory] call loads with, and the one the current [runner] was loaded with. */
-    private var loadCpuOnly = false
-    private var loadedCpuOnly = false
+    private var loadChoice = ComputeBackend.GPU
+    private var loadedChoice = ComputeBackend.GPU
 
     /** Tests inject a fake; production loads the model file from disk. */
     var runnerFactory: () -> LlmRunner = {
         if (!store.isReady) throw EngineException(EngineFailure.ModelMissing(id))
-        LiteRtLmRunner(context, store.modelFile.absolutePath, model.maxTokens, cpuOnly = loadCpuOnly)
+        val plan = BackendPlanner.plan(
+            loadChoice,
+            lowRam = !DeviceMemory.meets(context, DeviceMemory.AUTO_GPU_MIN_GB),
+            emulator = isEmulator(),
+            npu = NpuStatus.NOT_QUALCOMM,
+        )
+        LiteRtLmRunner(context, store.modelFile.absolutePath, model.maxTokens, plan)
     }
 
     /**
@@ -279,13 +307,17 @@ class LocalLlmEngine(
      * on the other backend than [cpuOnly] now asks for is released and loaded again.
      */
     private suspend fun ensureRunner(): LlmRunner {
-        val wantCpu = cpuOnly()
-        runner?.let { if (loadedCpuOnly == wantCpu) return it else release() }
+        val want = backendChoice()
+        runner?.let { if (loadedChoice == want) return it else release() }
         return withContext(Dispatchers.Default) {
             siblings().filter { it !== this@LocalLlmEngine }.forEach { it.release() }
-            loadCpuOnly = wantCpu
+            loadChoice = want
             runnerFactory()
-        }.also { runner = it; loadedCpuOnly = wantCpu }
+        }.also {
+            runner = it; loadedChoice = want
+            // What the runner says it ran on: the app shows this under "Running on …".
+            onLoaded(want, it.backendName, it.backendNote)
+        }
     }
 
     fun release() { runner?.close(); runner = null; warmed = false }

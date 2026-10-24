@@ -42,6 +42,23 @@
     <string name="qwen_backend_auto_note">RAM이 %1$d GB 미만인 휴대전화는 CPU, 그 외에는 GPU</string>
     <string name="qwen_backend_gpu_note">약 3배 빠름. 여유 메모리 약 3 GB 필요</string>
     <string name="qwen_backend_cpu_note">약 3배 느림. 메모리를 훨씬 적게 사용</string>
+    <string name="backend_title" translatable="false">Run models on</string>
+    <string name="backend_auto" translatable="false">Automatic · %1$s</string>
+    <string name="backend_gpu" translatable="false">GPU</string>
+    <string name="backend_cpu" translatable="false">CPU</string>
+    <string name="backend_npu" translatable="false">NPU</string>
+    <string name="backend_auto_note" translatable="false">CPU on phones with less than %1$d GB of RAM, GPU otherwise</string>
+    <string name="backend_gpu_note" translatable="false">About 3× faster; needs about 3 GB of free memory</string>
+    <string name="backend_cpu_note" translatable="false">About 3× slower; needs much less memory</string>
+    <string name="backend_npu_note" translatable="false">Experimental. Needs a model compiled for your chip and Qualcomm NPU libraries. Falls back to GPU.</string>
+    <string name="backend_running" translatable="false">Running on %1$s</string>
+    <string name="backend_fell_back" translatable="false">Asked for %1$s, running on %2$s</string>
+    <string name="backend_note_npu_not_qualcomm" translatable="false">This phone has no Qualcomm NPU</string>
+    <string name="backend_note_npu_libs_missing" translatable="false">NPU libraries are missing from this build</string>
+    <string name="backend_note_npu_model_not_compiled" translatable="false">This model is not compiled for the NPU</string>
+    <string name="backend_note_npu_blocked" translatable="false">The NPU crashed last time, so it is skipped until you pick it again</string>
+    <string name="backend_note_npu_init_failed" translatable="false">The NPU failed to start, so the GPU is used</string>
+    <string name="backend_note_gpu_init_failed" translatable="false">The GPU failed to start, so the CPU is used</string>
 
     <string name="library_subtitle">읽기 목록</string>
     <string name="library_search">사이트 검색 또는 URL 입력</string>

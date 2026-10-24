@@ -50,8 +50,9 @@ Measured 2026-09-27. Re-measure when LiteRT-LM, a model file or the trim policy 
   same (~500–600 MB), and the camera runs without killing Panelglass. Pressing Home mid-translation used to keep the
   model loaded for about a minute (3.2 GB on the GPU); it is now released 5 s after its last call (fixed
   2026-09-27, [below](#going-to-the-background-mid-translation)).
-- **Qwen picks its backend by RAM.** Settings › Models › *Qwen runs on* defaults to Automatic: the CPU on phones
-  under 6 GB, the GPU otherwise; GPU and CPU can be forced.
+- **The user picks the backend, for every model.** Settings › Models › *Run models on* defaults to Automatic: the CPU
+  on phones under 6 GB, the GPU otherwise; GPU and CPU can be forced. The setting applies to Qwen, Gemma 4 and the
+  user's own models alike, and the app shows which backend actually ran.
 
 ## Test device
 

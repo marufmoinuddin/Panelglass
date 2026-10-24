@@ -81,6 +81,9 @@ docs/ScreenRecordings/raw/
 # Commercial manga used to test on this machine: copyrighted, never published.
 docs/TestAssests/
 
+# The Qualcomm NPU libraries (proprietary binaries): fetched by scripts/fetch-npu-libs.sh, never committed.
+app/src/main/jniLibs/
+
 # JVM crash logs
 hs_err_pid*.log
 

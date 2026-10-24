@@ -10,6 +10,7 @@ workflow publishes the version's section as the GitHub Release notes.
 ### Added
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 - **Glossary & pronouns** in the reader (⋮): character names and terms per series, each character with a pronoun
   (he, she, they), plus notes for the series. Gemini and the on-device models use them; Google Translate uses the
   names and terms.
@@ -20,6 +21,10 @@ workflow publishes the version's section as the GitHub Release notes.
 - **In-app updates**: a newer release is offered once a day (Update or Later), downloaded
 - More Japanese and Korean sound effects in the built-in dictionary; hiragana and katakana spellings, and an extra
 =======
+=======
+- **Run models on** setting: choose Automatic, CPU or GPU for every on-device model — Qwen, Gemma 4 and your own
+  models alike — and the app shows which backend actually ran.
+>>>>>>> bf9da39 (Add compute backend setting (Automatic, CPU, GPU) for all on-device models)
 - **Offline models**: bring your own LiteRT-LM model. Settings › Models › **Browse models** searches the Hugging Face
   catalogue (or type `owner/name` to list a repository directly) and downloads any `.litertlm` file; **Import from
   file** adds one already on the phone. Keep several, delete them again, and tap **Use** to pick the one the new

@@ -27,34 +27,54 @@ private const val CANCEL_DRAIN_MS = 5_000L
 /**
  * A `.litertlm` model through LiteRT-LM, the runtime of Google's AI Edge Gallery. The file carries its own chat
  * template, so the prompt goes in as a system instruction plus one user turn of a fresh [com.google.ai.edge.litertlm.Conversation]
- * per completion (no history between calls). The GPU backend is tried first and the CPU is the fallback, as in the
- * Gallery; emulators, and [cpuOnly] (Settings › Run Qwen on the CPU), go straight to the CPU. LiteRT-LM exposes no
- * tokenizer, so [tokens] is null and the engine budgets by characters.
+ * per completion (no history between calls). The backends to try come from a [BackendPlan] (the user's choice, the
+ * phone's RAM and what the NPU can do); the first that starts wins. LiteRT-LM exposes no tokenizer, so [tokens] is
+ * null and the engine budgets by characters.
  */
-class LiteRtLmRunner(context: Context, modelPath: String, maxTokens: Int, cpuOnly: Boolean = false) : LlmRunner {
+class LiteRtLmRunner(context: Context, modelPath: String, maxTokens: Int, plan: BackendPlan) : LlmRunner {
     private val engine: Engine
-    val backend: String
+
+    /** The backend that actually loaded: "npu", "gpu" or "cpu". */
+    private var loadedName: String? = null
+
+    /** Why the backend that ran is not the one that was asked for, when it is not. */
+    private var loadedNote: BackendNote = BackendNote.NONE
+
+    override val backendName: String? get() = loadedName
+    override val backendNote: BackendNote get() = loadedNote
 
     init {
         val cache = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
-        val candidates = if (cpuOnly || isEmulator()) listOf("cpu") else listOf("gpu", "cpu")
         var loaded: Engine? = null
         var used = ""
-        for (name in candidates) {
+        var note = plan.note
+        for ((index, kind) in plan.order.withIndex()) {
             val started = System.currentTimeMillis()
-            val e = Engine(EngineConfig(modelPath = modelPath, backend = if (name == "gpu") Backend.GPU() else Backend.CPU(), maxNumTokens = maxTokens, cacheDir = cache))
+            val backend = when (kind) {
+                BackendKind.GPU -> Backend.GPU()
+                BackendKind.CPU -> Backend.CPU()
+                // Phase 1 never plans the NPU; Phase 2 maps it to the runtime's own backend.
+                BackendKind.NPU -> Backend.CPU()
+            }
+            val e = Engine(EngineConfig(modelPath = modelPath, backend = backend, maxNumTokens = maxTokens, cacheDir = cache))
             try {
                 e.initialize()
-                loaded = e; used = name
-                android.util.Log.i(TAG, "LiteRT-LM loaded on $name in ${System.currentTimeMillis() - started} ms")
+                loaded = e; used = kind.name.lowercase()
+                // A backend that was planned and did not start: the one that ran is not the one that was asked for.
+                if (index > 0) note = when (kind) {
+                    BackendKind.NPU -> BackendNote.NPU_INIT_FAILED
+                    else -> BackendNote.GPU_INIT_FAILED
+                }
+                android.util.Log.i(TAG, "LiteRT-LM loaded on $used in ${System.currentTimeMillis() - started} ms")
                 break
             } catch (t: Exception) {
-                android.util.Log.w(TAG, "LiteRT-LM $name backend failed: ${t::class.simpleName}")
+                android.util.Log.w(TAG, "LiteRT-LM ${kind.name.lowercase()} backend failed: ${t::class.simpleName}")
                 runCatching { e.close() }
             }
         }
         engine = loaded ?: throw IllegalStateException("LiteRT-LM could not load the model")
-        backend = used
+        loadedName = used
+        loadedNote = note
     }
 
     override suspend fun complete(prompt: ChatPrompt): String = complete(prompt) { false }
@@ -103,7 +123,7 @@ class LiteRtLmRunner(context: Context, modelPath: String, maxTokens: Int, cpuOnl
             }
             android.util.Log.i(
                 TAG,
-                "generate ($backend): reply ${out.length} chars / $chunks chunks in ${System.currentTimeMillis() - started} ms" +
+                "generate ($backendName): reply ${out.length} chars / $chunks chunks in ${System.currentTimeMillis() - started} ms" +
                     if (stopped.get()) " (stopped early)" else "",
             )
             return out
@@ -114,7 +134,8 @@ class LiteRtLmRunner(context: Context, modelPath: String, maxTokens: Int, cpuOnl
     }
 
     override fun close() { engine.close() }
-
-    private fun isEmulator(): Boolean =
-        Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu") || Build.PRODUCT.contains("sdk_gphone")
 }
+
+/** Whether this runs on an emulator: it has no GPU worth using and no NPU at all. */
+internal fun isEmulator(): Boolean =
+    Build.FINGERPRINT.contains("generic") || Build.HARDWARE.contains("ranchu") || Build.PRODUCT.contains("sdk_gphone")
