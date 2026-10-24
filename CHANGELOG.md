@@ -9,6 +9,7 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ### Added
 
+<<<<<<< HEAD
 - **Glossary & pronouns** in the reader (⋮): character names and terms per series, each character with a pronoun
   (he, she, they), plus notes for the series. Gemini and the on-device models use them; Google Translate uses the
   names and terms.
@@ -18,6 +19,13 @@ workflow publishes the version's section as the GitHub Release notes.
 - **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector missed; with Replace, effects nothing can read are still erased.
 - **In-app updates**: a newer release is offered once a day (Update or Later), downloaded
 - More Japanese and Korean sound effects in the built-in dictionary; hiragana and katakana spellings, and an extra
+=======
+- **Offline models**: bring your own LiteRT-LM model. Settings › Models › **Browse models** searches the Hugging Face
+  catalogue (or type `owner/name` to list a repository directly) and downloads any `.litertlm` file; **Import from
+  file** adds one already on the phone. Keep several, delete them again, and tap **Use** to pick the one the new
+  **Offline model** engine runs. Only the LiteRT-LM format works — the one the bundled runtime loads. A gated model
+  has to be downloaded in a browser and imported.
+>>>>>>> 24f1d15 (Add an offline-model library: browse, download, import and switch)
 - **Custom AI**, a translation engine for your own OpenAI-compatible server. Name its address and the model in
   Settings and paste your key: the app sends a plain text Chat Completions request to `<your address>/chat/completions`
   and reads the text on the device, so no image ever leaves the phone. The address must be HTTPS; a pasted
