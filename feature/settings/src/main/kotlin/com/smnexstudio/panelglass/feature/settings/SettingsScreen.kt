@@ -168,10 +168,13 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
     // What actually ran last, when it differs from what was asked for.
     val runningNote = vm.lastBackend.collectAsStateWithLifecycle().value?.let { report ->
         val used = report.used.uppercase()
-        if (report.requested.name == report.used.uppercase() && report.note == BackendNote.NONE) {
+        val asked = report.requested.name
+        if (asked == report.used.uppercase() && report.note == BackendNote.NONE) {
             stringResource(UiR.string.backend_running, used)
         } else {
-            stringResource(UiR.string.backend_fell_back, report.requested.name, used)
+            val why = backendNoteText(report.note)
+            if (why == null) stringResource(UiR.string.backend_fell_back, asked, used)
+            else stringResource(UiR.string.backend_fell_back_reason, asked, used, why)
         }
     }
     val context = LocalContext.current
@@ -520,6 +523,18 @@ private fun ModelRow(
         val fraction = if (state.total > 0) (state.bytes.toFloat() / state.total).coerceIn(0f, 1f) else 0f
         LinearProgressIndicator(progress = { fraction }, color = Tokens.Yellow, trackColor = Tokens.Border, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, end = 8.dp))
     }) else null)
+}
+
+/** The reason the backend that ran is not the one that was asked for, in words; null when there is none. */
+@Composable
+private fun backendNoteText(note: BackendNote): String? = when (note) {
+    BackendNote.NONE -> null
+    BackendNote.NPU_NOT_QUALCOMM -> stringResource(UiR.string.backend_note_npu_not_qualcomm)
+    BackendNote.NPU_LIBS_MISSING -> stringResource(UiR.string.backend_note_npu_libs_missing)
+    BackendNote.NPU_MODEL_NOT_COMPILED -> stringResource(UiR.string.backend_note_npu_model_not_compiled)
+    BackendNote.NPU_BLOCKED -> stringResource(UiR.string.backend_note_npu_blocked)
+    BackendNote.NPU_INIT_FAILED -> stringResource(UiR.string.backend_note_npu_init_failed)
+    BackendNote.GPU_INIT_FAILED -> stringResource(UiR.string.backend_note_gpu_init_failed)
 }
 
 /**
