@@ -75,7 +75,8 @@ import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.ModelState
 import com.smnexstudio.panelglass.core.model.UserModel
-import com.smnexstudio.panelglass.core.model.QwenBackend
+import com.smnexstudio.panelglass.core.model.ComputeBackend
+import com.smnexstudio.panelglass.core.engine.local.BackendNote
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -150,17 +151,29 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
     val studioStorage by vm.studioStorage.collectAsStateWithLifecycle()
     var deletingManga by remember { mutableStateOf<MangaStorage?>(null) }
     LaunchedEffect(Unit) { vm.loadStudioStorage() }
-    val gpu = stringResource(UiR.string.qwen_backend_gpu); val cpu = stringResource(UiR.string.qwen_backend_cpu)
-    // Automatic names what it picks on this phone ("Automatic · GPU").
+    val gpu = stringResource(UiR.string.backend_gpu); val cpu = stringResource(UiR.string.backend_cpu)
+    // Automatic names what it picks on this phone ("Automatic · GPU"): the RAM rule, as before.
     val backendNames = mapOf(
-        QwenBackend.AUTO to stringResource(UiR.string.qwen_backend_auto, if (vm.qwenAutoOnCpu) cpu else gpu),
-        QwenBackend.GPU to gpu, QwenBackend.CPU to cpu,
+        ComputeBackend.AUTO to stringResource(UiR.string.backend_auto, if (vm.autoOnCpu) cpu else gpu),
+        ComputeBackend.GPU to gpu, ComputeBackend.CPU to cpu, ComputeBackend.NPU to stringResource(UiR.string.backend_npu),
     )
     val backendNotes = mapOf(
-        QwenBackend.AUTO to stringResource(UiR.string.qwen_backend_auto_note, DeviceMemory.AUTO_GPU_MIN_GB),
-        QwenBackend.GPU to stringResource(UiR.string.qwen_backend_gpu_note),
-        QwenBackend.CPU to stringResource(UiR.string.qwen_backend_cpu_note),
+        ComputeBackend.AUTO to stringResource(UiR.string.backend_auto_note, DeviceMemory.AUTO_GPU_MIN_GB),
+        ComputeBackend.GPU to stringResource(UiR.string.backend_gpu_note),
+        ComputeBackend.CPU to stringResource(UiR.string.backend_cpu_note),
+        ComputeBackend.NPU to stringResource(UiR.string.backend_npu_note),
     )
+    // The NPU choice is only offered where it can work; in Phase 1 it is not built at all.
+    val backendChoices = ComputeBackend.entries.filter { it != ComputeBackend.NPU || vm.npuAvailable }
+    // What actually ran last, when it differs from what was asked for.
+    val runningNote = vm.lastBackend.collectAsStateWithLifecycle().value?.let { report ->
+        val used = report.used.uppercase()
+        if (report.requested.name == report.used.uppercase() && report.note == BackendNote.NONE) {
+            stringResource(UiR.string.backend_running, used)
+        } else {
+            stringResource(UiR.string.backend_fell_back, report.requested.name, used)
+        }
+    }
     val context = LocalContext.current
     val appLang = remember { AppLocale.current(context) }
 
@@ -253,25 +266,15 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
                     onDownload = { vm.downloadModel(m) },
                     onCancel = { vm.cancelDownload(m) }, onDelete = { vm.deleteModel(m) },
                 )
-                if (m == LocalModel.QWEN15) {
-                    CardDivider()
-                    // Same shape as the model rows around it (ActionRow), plus the chevron of a row that opens choices.
-                    Row(
-                        Modifier.fillMaxWidth().clickable { backendPicker = true }.padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(UiR.string.qwen_backend), style = MaterialTheme.typography.bodyLarge, color = Tokens.Ink)
-                            Text(backendNotes.getValue(s.qwenBackend), style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft, modifier = Modifier.padding(top = 2.dp))
-                        }
-                        Text(
-                            backendNames.getValue(s.qwenBackend), fontFamily = Jakarta, fontWeight = FontWeight.W700, fontSize = 14.sp,
-                            color = Tokens.SkyDeep, maxLines = 1, modifier = Modifier.padding(start = 10.dp),
-                        )
-                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Tokens.InkFaint, modifier = Modifier.padding(start = 2.dp).size(20.dp))
-                    }
-                }
             }
+            CardDivider()
+            // Where every on-device model runs: one row for all of them, not one per model.
+            BackendRow(
+                onClick = { backendPicker = true },
+                subtitle = backendNotes.getValue(s.computeBackend),
+                value = backendNames.getValue(s.computeBackend),
+                runningOn = runningNote,
+            )
         }
         Spacer(Modifier.height(12.dp))
         TokenCard(Modifier.padding(horizontal = 16.dp)) {
@@ -365,9 +368,9 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
 
     if (packsSheet) PacksSheet(packs, onDownload = { vm.downloadPack(it) }, onDelete = { vm.deletePack(it) }, onDismiss = { packsSheet = false })
     if (backendPicker) ChoiceSheet(
-        stringResource(UiR.string.qwen_backend), QwenBackend.entries, s.qwenBackend,
+        stringResource(UiR.string.backend_title), backendChoices, s.computeBackend,
         render = { backendNames.getValue(it) },
-        onPick = { vm.setQwenBackend(it) }, onDismiss = { backendPicker = false },
+        onPick = { vm.setComputeBackend(it) }, onDismiss = { backendPicker = false },
         subtitle = { backendNotes.getValue(it) },
     )
     if (srcPicker) ChoiceSheet(stringResource(UiR.string.lang_source), Lang.sourceChoices, s.defaultSourceLang, { it.uiName() }, onPick = { vm.setSrc(it) }, onDismiss = { srcPicker = false })
@@ -517,6 +520,31 @@ private fun ModelRow(
         val fraction = if (state.total > 0) (state.bytes.toFloat() / state.total).coerceIn(0f, 1f) else 0f
         LinearProgressIndicator(progress = { fraction }, color = Tokens.Yellow, trackColor = Tokens.Border, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, end = 8.dp))
     }) else null)
+}
+
+/**
+ * "Run models on": where every on-device model runs. The chevron opens the choices; [runningOn] says what actually
+ * ran the last time a model loaded.
+ */
+@Composable
+private fun BackendRow(onClick: () -> Unit, subtitle: String, value: String, runningOn: String?) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(UiR.string.backend_title), style = MaterialTheme.typography.bodyLarge, color = Tokens.Ink)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft, modifier = Modifier.padding(top = 2.dp))
+            if (runningOn != null) {
+                Text(runningOn, style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        Text(
+            value, fontFamily = Jakarta, fontWeight = FontWeight.W700, fontSize = 14.sp,
+            color = Tokens.SkyDeep, maxLines = 1, modifier = Modifier.padding(start = 10.dp),
+        )
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Tokens.InkFaint, modifier = Modifier.padding(start = 2.dp).size(20.dp))
+    }
 }
 
 /** Google Translate (ML Kit) language packs: how many are on the phone; [onManage] opens the per-language list. */

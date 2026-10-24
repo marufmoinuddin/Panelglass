@@ -262,7 +262,8 @@ Panelglass is not on Google Play. Each release is published on GitHub:
      the path that is called. The request is text only: the text is read on the device and no image is sent.
    - **Qwen 2.5 1.5B** or **Gemma 4 E2B**: download the model under **Models**. The engine picker then shows it as
      *downloaded*. Qwen runs on the GPU, or on the CPU on phones under 6 GB of RAM (about 3× slower, but far less
-     memory); **Settings → Models → Qwen runs on** changes it ([details](docs/MEMORY_USAGE.md)).
+     memory); **Settings → Models → Run models on** changes it for every on-device model at once
+     ([details](docs/MEMORY_USAGE.md)).
 3. For Japanese with an offline engine, also download **Japanese manga OCR** (140 MB).
 4. **Your own offline model.** Settings › Models › **Browse models** searches the Hugging Face catalogue of
    LiteRT-LM models (or type `owner/name` to list a repository directly); pick a `.litertlm` file, confirm, and wait

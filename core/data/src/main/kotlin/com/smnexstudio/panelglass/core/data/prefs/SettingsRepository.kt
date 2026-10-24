@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.smnexstudio.panelglass.core.model.AppTheme
 import com.smnexstudio.panelglass.core.model.BubbleFont
 import com.smnexstudio.panelglass.core.model.ContextMode
+import com.smnexstudio.panelglass.core.model.ComputeBackend
 import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.FreeTextMode
 import com.smnexstudio.panelglass.core.model.Lang
@@ -55,6 +56,8 @@ class SettingsRepository @Inject constructor(
         val studioExportQuality = stringPreferencesKey("studioExportQuality")
         val fontFavourites = stringPreferencesKey("fontFavourites")
         val qwenBackend = stringPreferencesKey("qwenBackend")
+        /** Where every on-device model runs; the successor of [qwenBackend]. */
+        val computeBackend = stringPreferencesKey("computeBackend")
         val automaticPacks = booleanPreferencesKey("automaticPacksDone")
         /** The user's own OpenAI-compatible server for the "Custom AI" engine; an address, not a secret. */
         val customBaseUrl = stringPreferencesKey("customBaseUrl")
@@ -83,6 +86,10 @@ class SettingsRepository @Inject constructor(
             blockListUpdatedAt = p[K.blockListUpdatedAt] ?: d.blockListUpdatedAt,
             appTheme = p[K.theme]?.let { AppTheme.fromId(it) } ?: d.appTheme,
             qwenBackend = p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) } ?: d.qwenBackend,
+            computeBackend = p[K.computeBackend]?.let { enumOrNull<ComputeBackend>(it) }
+                // A phone that only ever chose Qwen's backend keeps that choice.
+                ?: p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) }?.let { legacyBackend(it) }
+                ?: d.computeBackend,
             customBaseUrl = p[K.customBaseUrl] ?: d.customBaseUrl,
             activeUserModelId = p[K.activeUserModel] ?: d.activeUserModelId,
         )
@@ -99,6 +106,16 @@ class SettingsRepository @Inject constructor(
     suspend fun setBlockListUpdatedAt(v: Long) { dataStore.edit { it[K.blockListUpdatedAt] = v } }
     suspend fun setAppTheme(v: AppTheme) { dataStore.edit { it[K.theme] = v.id } }
     suspend fun setQwenBackend(v: QwenBackend) { dataStore.edit { it[K.qwenBackend] = v.name } }
+
+    /** Where every on-device model runs. */
+    suspend fun setComputeBackend(v: ComputeBackend) { dataStore.edit { it[K.computeBackend] = v.name } }
+
+    /** The old Qwen-only choice, as the new one: what was picked for Qwen becomes the choice for every model. */
+    private fun legacyBackend(old: QwenBackend): ComputeBackend = when (old) {
+        QwenBackend.AUTO -> ComputeBackend.AUTO
+        QwenBackend.GPU -> ComputeBackend.GPU
+        QwenBackend.CPU -> ComputeBackend.CPU
+    }
 
     /** The reader's "Translate page" target, an ML Kit language tag; English until the user picks another. */
     suspend fun pageTranslateTarget(): String = dataStore.data.first()[K.pageTarget] ?: "en"

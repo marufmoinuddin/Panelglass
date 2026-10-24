@@ -13,7 +13,9 @@ import com.smnexstudio.panelglass.core.engine.llm.GeminiEngine
 import com.smnexstudio.panelglass.core.model.ModelState
 import android.content.Context
 import com.smnexstudio.panelglass.core.engine.local.DeviceMemory
+import com.smnexstudio.panelglass.core.engine.local.BackendReport
 import com.smnexstudio.panelglass.core.engine.local.HfCatalog
+import com.smnexstudio.panelglass.core.engine.local.LocalEngines
 import com.smnexstudio.panelglass.core.engine.local.LocalModel
 import com.smnexstudio.panelglass.core.engine.local.ModelStores
 import com.smnexstudio.panelglass.core.engine.local.UserModelLibrary
@@ -28,6 +30,7 @@ import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.CustomEndpoint
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.QwenBackend
+import com.smnexstudio.panelglass.core.model.ComputeBackend
 import com.smnexstudio.panelglass.core.model.RegionItem
 import com.smnexstudio.panelglass.core.model.RegionKind
 import com.smnexstudio.panelglass.core.model.Settings
@@ -106,6 +109,7 @@ class SettingsViewModel @Inject constructor(
     private val studio: StudioRepository,
     private val userModels: UserModelLibrary,
     private val catalog: HfCatalog,
+    private val localEngines: LocalEngines,
 ) : ViewModel() {
     val settings: StateFlow<Settings> = repo.settings.stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
     val keys: StateFlow<Set<EngineId>> = registry.observeKeys().stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
@@ -261,6 +265,18 @@ class SettingsViewModel @Inject constructor(
     fun setAdBlock(v: Boolean) = viewModelScope.launch { repo.setAdBlockDefault(v) }
     /** Takes effect at Qwen's next call: a model already loaded on the other backend is reloaded then. */
     fun setQwenBackend(v: QwenBackend) = viewModelScope.launch { repo.setQwenBackend(v) }
+
+    /** Where every on-device model runs; takes effect at the next model load. */
+    fun setComputeBackend(v: ComputeBackend) = viewModelScope.launch { repo.setComputeBackend(v) }
+
+    /** What Automatic would pick on this phone: the GPU, or the CPU on a phone with little RAM. */
+    val autoOnCpu: Boolean = DeviceMemory.qwenOnCpu(context, QwenBackend.AUTO)
+
+    /** What actually ran the last time a model loaded. */
+    val lastBackend: StateFlow<BackendReport?> = localEngines.lastBackend
+
+    /** Whether the NPU can be offered at all (false until the NPU is built). */
+    val npuAvailable: Boolean get() = false
     /** What Automatic picks on this phone (by its RAM), shown next to the choice. */
     val qwenAutoOnCpu: Boolean = DeviceMemory.qwenOnCpu(context, QwenBackend.AUTO)
     /** The reader's font, a Studio font id; null for Auto (the target language's comic font). */
