@@ -3,7 +3,7 @@
 What the automated tests cover, how to run them, and the checks that still need a phone. The architecture under test
 is in [ARCHITECTURE.md](ARCHITECTURE.md); the translation flow in [FLOW.md](FLOW.md).
 
-Counts as of 2026-10-25: **440 unit tests** in 67 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-25: **450 unit tests** in 69 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -69,7 +69,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `PatchCacheTest` | 5 | Round-trip of patch geometry and bytes; LRU eviction over budget; a corrupt file is dropped, not thrown; an out-of-range length is refused before allocating and the file deleted; the key includes everything that changes rendering, the reader's font too |
 | `SystemDownloadsIntegrityTest` | 4 | A download matching its SHA-256 is moved into place and remembered; a mismatch is deleted, never placed; a file already on disk is checked once; a file changed after its check is checked again |
 
-### core:engine (130)
+### core:engine (140)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -82,6 +82,8 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `OfflineModelEngineTest` | 5 | The "Offline model" engine (Robolectric): without an active model, and with an active model whose file is not there, the failure is `ModelMissing`; a model whose file is really on the phone translates through its own engine with the on-device prompt; it is text only; the same model keeps the same engine |
 | `BackendPlannerTest` | 8 | The rule that turns the user's choice into the order the backends are tried in: Automatic takes the CPU on a phone with little RAM and the GPU otherwise, and never the NPU; CPU is the only backend; GPU falls back to the CPU; an emulator always uses the CPU; the NPU is tried first when it can be used, and each unusable status falls back to the GPU with the matching note |
 | `ComputeBackendSettingTest` | 5 | The backend setting: Automatic by default; the old Qwen-only choice becomes the new one (every old value has a matching new one); the new choice wins over the old one; the choice is saved and read back |
+| `NpuSupportTest` | 5 | Whether a model file was compiled for this phone's chip: a file built for the chip (`…_sm8750.litertlm`) is usable, one built for another chip is not, a plain model is not built for any NPU, and the chip is matched without regard to case |
+| `NpuGuardTest` | 5 | The guard against an NPU that takes the app down: an attempt that finished leaves no trace, one that did not finish blocks that model only, and picking a backend again clears the block (Robolectric) |
 | `LlmContractTest` | 8 | The cloud JSON contract: strict and tolerant parsing (prose, code fences), length mismatch and garbage are `Malformed`; HTTP status mapping, Gemini "high demand" is `Overloaded` with the provider's message; the retry policy is bounded and capped; glossary and montage mapping in the prompt |
 | `GoogleTranslateEngineTest` | 9 | ML Kit translation behind its seam: every item translated, pack downloaded once; a pack the user has not downloaded is a typed `PackMissing` and nothing is fetched; glossary terms before and after; names learned in one request apply to the next; Japanese prepared first, Korean passed through; an echoed sound word romanised for Latin targets; a failed pack download is a typed `Unavailable` |
 | `JaPrepTest` | 7 | Japanese preparation for ML Kit: names found by honorific, whole-bubble and repetition (a loanword seen twice is not a name); names and honorifics swapped; casual negatives standardised; romaji for names and sound words |

@@ -156,6 +156,11 @@ the picker and refused by the registry.
   [MEMORY_USAGE.md](MEMORY_USAGE.md)). `BackendPlanner` turns the choice into the order the backends are tried in; the
   first that starts wins, and the app shows what actually ran. The choice is read at each load, and a model loaded
   on another backend is reloaded on its next call.
+- **The NPU is experimental.** It needs a Qualcomm phone, the QNN libraries in the build (fetched by
+  `scripts/fetch-npu-libs.sh`; they are proprietary and are never committed) and a model file that was compiled
+  ahead-of-time for that phone's own chip (`…_sm8750.litertlm`). Anything else falls back to the GPU, and the app
+  says why. An NPU that crashes the process is skipped afterwards until the user picks a backend again
+  (`NpuGuard`).
 
 ## Storage
 

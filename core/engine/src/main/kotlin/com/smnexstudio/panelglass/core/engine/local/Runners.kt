@@ -45,16 +45,22 @@ class LiteRtLmRunner(context: Context, modelPath: String, maxTokens: Int, plan: 
 
     init {
         val cache = File(context.cacheDir, "litertlm").apply { mkdirs() }.absolutePath
+        // The NPU is guarded: an attempt that kills the process leaves a note behind.
+        val guard = NpuGuard(context)
         var loaded: Engine? = null
         var used = ""
         var note = plan.note
         for ((index, kind) in plan.order.withIndex()) {
             val started = System.currentTimeMillis()
+            val isNpu = kind == BackendKind.NPU
+            if (isNpu) {
+                guard.checkPreviousAttempt(modelPath.substringAfterLast('/'))
+                guard.markAttempt(modelPath.substringAfterLast('/'))
+            }
             val backend = when (kind) {
                 BackendKind.GPU -> Backend.GPU()
                 BackendKind.CPU -> Backend.CPU()
-                // Phase 1 never plans the NPU; Phase 2 maps it to the runtime's own backend.
-                BackendKind.NPU -> Backend.CPU()
+                BackendKind.NPU -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
             }
             val e = Engine(EngineConfig(modelPath = modelPath, backend = backend, maxNumTokens = maxTokens, cacheDir = cache))
             try {
@@ -70,6 +76,8 @@ class LiteRtLmRunner(context: Context, modelPath: String, maxTokens: Int, plan: 
             } catch (t: Exception) {
                 android.util.Log.w(TAG, "LiteRT-LM ${kind.name.lowercase()} backend failed: ${t::class.simpleName}")
                 runCatching { e.close() }
+            } finally {
+                if (isNpu) guard.clearAttempt()
             }
         }
         engine = loaded ?: throw IllegalStateException("LiteRT-LM could not load the model")
