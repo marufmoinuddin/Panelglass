@@ -207,7 +207,7 @@ class LocalLlmEngine(
             loadChoice,
             lowRam = !DeviceMemory.meets(context, DeviceMemory.AUTO_GPU_MIN_GB),
             emulator = isEmulator(),
-            npu = NpuStatus.NOT_QUALCOMM,
+            npu = NpuSupport.status(context, model.fileName),
         )
         LiteRtLmRunner(context, store.modelFile.absolutePath, model.maxTokens, plan)
     }

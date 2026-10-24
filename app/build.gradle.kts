@@ -63,7 +63,12 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // The DSP has to open its skeleton library from a real file, so the native libraries are not
+        // compressed and not mapped straight out of the APK. This makes the installed app larger.
+        jniLibs { useLegacyPackaging = true }
+    }
     // Studio fonts are mapped straight from the APK by Font.Builder(assets, …), so they are stored uncompressed.
     androidResources { noCompress += listOf("ttf", "otf") }
     testOptions {

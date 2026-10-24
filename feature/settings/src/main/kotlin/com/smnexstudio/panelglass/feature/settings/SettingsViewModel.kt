@@ -19,6 +19,8 @@ import com.smnexstudio.panelglass.core.engine.local.BackendReport
 import com.smnexstudio.panelglass.core.engine.local.HfCatalog
 import com.smnexstudio.panelglass.core.engine.local.LocalEngines
 import com.smnexstudio.panelglass.core.engine.local.LocalModel
+import com.smnexstudio.panelglass.core.engine.local.NpuGuard
+import com.smnexstudio.panelglass.core.engine.local.NpuSupport
 import com.smnexstudio.panelglass.core.engine.local.ModelStores
 import com.smnexstudio.panelglass.core.engine.local.UserModelLibrary
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -276,7 +278,11 @@ class SettingsViewModel @Inject constructor(
     fun setAutoUpdateCheck(v: Boolean) = viewModelScope.launch { repo.setAutoUpdateCheck(v) }
 
     /** Where every on-device model runs; takes effect at the next model load. */
-    fun setComputeBackend(v: ComputeBackend) = viewModelScope.launch { repo.setComputeBackend(v) }
+    fun setComputeBackend(v: ComputeBackend) = viewModelScope.launch {
+        repo.setComputeBackend(v)
+        // Picking a backend on purpose clears the NPU's crash block: the user may want to try again.
+        NpuGuard(context).clearBlocked()
+    }
 
     /** What Automatic would pick on this phone: the GPU, or the CPU on a phone with little RAM. */
     val autoOnCpu: Boolean = DeviceMemory.qwenOnCpu(context, QwenBackend.AUTO)
@@ -284,8 +290,8 @@ class SettingsViewModel @Inject constructor(
     /** What actually ran the last time a model loaded. */
     val lastBackend: StateFlow<BackendReport?> = localEngines.lastBackend
 
-    /** Whether the NPU can be offered at all (false until the NPU is built). */
-    val npuAvailable: Boolean get() = false
+    /** Whether the NPU can be offered at all: a Qualcomm phone with the NPU libraries in this build. */
+    val npuAvailable: Boolean = NpuSupport.deviceAvailable(context)
     /** What Automatic picks on this phone (by its RAM), shown next to the choice. */
     val qwenAutoOnCpu: Boolean = DeviceMemory.qwenOnCpu(context, QwenBackend.AUTO)
     /** The reader's font, a Studio font id; null for Auto (the target language's comic font). */
