@@ -33,6 +33,8 @@ data class Settings(
     val appTheme: AppTheme = AppTheme.DEFAULT,
     /** Where Qwen runs; [QwenBackend.AUTO] decides by the phone's RAM. */
     val qwenBackend: QwenBackend = QwenBackend.AUTO,
+    /** Server address for Custom AI; not a secret. */
+    val customBaseUrl: String = "",
 ) {
     /**
      * The model to call for [id]: the user's choice, else the provider's default; blank when neither exists. A
