@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.smnexstudio.panelglass.core.engine.llm.ClaudeEngine
 import com.smnexstudio.panelglass.core.engine.llm.CustomOpenAiEngine
 import com.smnexstudio.panelglass.core.engine.llm.DeepSeekEngine
+import com.smnexstudio.panelglass.core.engine.local.BackendNote
 import com.smnexstudio.panelglass.core.engine.llm.GeminiEngine
 import com.smnexstudio.panelglass.core.engine.llm.OpenAiEngine
 import com.smnexstudio.panelglass.core.engine.llm.OpenRouterEngine
@@ -31,6 +32,7 @@ import com.smnexstudio.panelglass.core.model.TranslateRequest
 import android.app.ActivityManager
 import com.smnexstudio.panelglass.core.engine.local.DeviceMemory
 import com.smnexstudio.panelglass.core.model.QwenBackend
+import com.smnexstudio.panelglass.core.model.ComputeBackend
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -310,24 +312,64 @@ class RegistryAndQwenTest {
         assertEquals(0, b.closed)
     }
 
-    /** Settings › Models › Qwen runs on applies at the next call: a runner loaded on the other backend is reloaded once. */
+    /** Settings › Models › Run models on applies at the next call: a runner loaded on the other backend is reloaded once. */
     @Test
-    fun changingQwensBackendReloadsTheModelOnItsNextCall() = runBlocking {
+    fun changingTheBackendReloadsTheModelOnItsNextCall() = runBlocking {
         locals.bindSettings(settings)
-        settings.setQwenBackend(QwenBackend.GPU)
+        settings.setComputeBackend(ComputeBackend.GPU)
         val loaded = mutableListOf<TemplateFreeRunner>()
         qwen.runnerFactory = { TemplateFreeRunner("0: a").also { loaded += it } }
         val req = TranslateRequest(items(1), Lang.JA, Lang.EN)
         qwen.translate(req)
         qwen.translate(req)
         assertEquals(1, loaded.size)
-        settings.setQwenBackend(QwenBackend.CPU)
+        settings.setComputeBackend(ComputeBackend.CPU)
         qwen.translate(req)
         assertEquals(2, loaded.size)
         assertEquals(1, loaded[0].closed)
         qwen.translate(req)
         assertEquals(2, loaded.size)
-        assertEquals(QwenBackend.CPU, settings.current().qwenBackend)
+        assertEquals(ComputeBackend.CPU, settings.current().computeBackend)
+    }
+
+    /** The setting is not Qwen's alone: Gemma 4 is reloaded on it too. */
+    @Test
+    fun changingTheBackendReloadsGemmaAsWell() = runBlocking {
+        locals.bindSettings(settings)
+        settings.setComputeBackend(ComputeBackend.GPU)
+        val loaded = mutableListOf<TemplateFreeRunner>()
+        val gemma = locals[LocalModel.GEMMA4]
+        gemma.runnerFactory = { TemplateFreeRunner("0: a").also { loaded += it } }
+        val req = TranslateRequest(items(1), Lang.JA, Lang.EN)
+        gemma.translate(req)
+        gemma.translate(req)
+        assertEquals(1, loaded.size)
+        settings.setComputeBackend(ComputeBackend.CPU)
+        gemma.translate(req)
+        assertEquals(2, loaded.size)
+        assertEquals(1, loaded[0].closed)
+    }
+
+    /** What actually ran is reported after a load: the backend the runner says, and the note. */
+    @Test
+    fun theBackendThatRanIsReported() = runBlocking {
+        locals.bindSettings(settings)
+        settings.setComputeBackend(ComputeBackend.GPU)
+        qwen.runnerFactory = { BackendRunner("gpu", BackendNote.NONE) }
+        assertEquals(null, locals.lastBackend.value)
+        qwen.translate(TranslateRequest(items(1), Lang.JA, Lang.EN))
+        val report = locals.lastBackend.value
+        assertTrue(report != null)
+        assertEquals(ComputeBackend.GPU, report!!.requested)
+        assertEquals("gpu", report.used)
+        assertEquals(BackendNote.NONE, report.note)
+    }
+
+    /** A runner that says which backend it ran on, and why it is not the one that was asked for. */
+    private class BackendRunner(private val name: String, private val note: BackendNote) : LlmRunner {
+        override val backendName: String? = name
+        override val backendNote: BackendNote = note
+        override suspend fun complete(prompt: ChatPrompt): String = "0: a"
     }
 
     /** Automatic takes the CPU below a 6 GB phone (≥ 5 GiB reported); an explicit choice wins whatever the RAM. */

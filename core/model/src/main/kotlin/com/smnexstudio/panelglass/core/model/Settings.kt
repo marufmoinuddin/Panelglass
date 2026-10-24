@@ -7,6 +7,15 @@ package com.smnexstudio.panelglass.core.model
  */
 enum class QwenBackend { AUTO, GPU, CPU }
 
+/**
+ * Where every on-device model runs. It applies to all of them: Qwen, Gemma 4 and the user's own models.
+ *
+ * AUTO takes the GPU on a phone with enough RAM and the CPU on a small one; it never uses the NPU. The NPU is
+ * experimental: it needs a model compiled for the phone's own chip, so a file that was built for another chip
+ * falls back to the GPU (and the app says so).
+ */
+enum class ComputeBackend { AUTO, CPU, GPU, NPU }
+
 data class Settings(
     val defaultSourceLang: Lang = Lang.JA,
     val defaultTargetLang: Lang = Lang.EN,
@@ -37,6 +46,8 @@ data class Settings(
     val customBaseUrl: String = "",
     /** The user's own model the "Offline model" engine runs; empty when none is active. */
     val activeUserModelId: String = "",
+    /** Where every on-device model runs. */
+    val computeBackend: ComputeBackend = ComputeBackend.AUTO,
 ) {
     /**
      * The model to call for [id]: the user's choice, else the provider's default; blank when neither exists. A

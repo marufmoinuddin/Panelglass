@@ -149,11 +149,13 @@ the picker and refused by the registry.
   vendor's OpenCL library, which from Android 12 an app can load only if the manifest declares it
   (`<uses-native-library>` for `libOpenCL.so`, `libOpenCL-car.so`, `libOpenCL-pixel.so`, `libvndksupport.so`, all
   optional). Without them the GPU backend fails with "OpenCL not supported" and the models run on the CPU.
-- **Qwen's backend** (`Settings.qwenBackend`, Settings › Models › *Qwen runs on*): Automatic (default) takes the CPU
-  on phones under 6 GB of RAM (`DeviceMemory.qwenOnCpu`), the GPU otherwise; GPU or CPU can be forced. On the CPU
-  Qwen is about 3× slower, but its weights stay a memory-mapped file the system can reclaim (~0.6 GB pinned instead
-  of ~2.8 GB; see [MEMORY_USAGE.md](MEMORY_USAGE.md)). The choice is read at each load, and a model loaded on the
-  other backend is reloaded on its next call.
+- **Where the models run** (`Settings.computeBackend`, Settings › Models › *Run models on*): one choice for every
+  on-device model — Qwen, Gemma 4 and the user's own. Automatic (default) takes the CPU on phones under 6 GB of RAM
+  (`DeviceMemory.qwenOnCpu`), the GPU otherwise; GPU or CPU can be forced. On the CPU a model is about 3× slower, but
+  its weights stay a memory-mapped file the system can reclaim (~0.6 GB pinned instead of ~2.8 GB; see
+  [MEMORY_USAGE.md](MEMORY_USAGE.md)). `BackendPlanner` turns the choice into the order the backends are tried in; the
+  first that starts wins, and the app shows what actually ran. The choice is read at each load, and a model loaded
+  on another backend is reloaded on its next call.
 
 ## Storage
 
