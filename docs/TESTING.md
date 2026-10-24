@@ -61,6 +61,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `PatchTest` | 2 | A rendered patch is shown from its pixels and encoded to WEBP only when its bytes are first read, once; a cached patch has bytes only |
 | `ReadStateTest` | 3 | Only the read state marks a region unread or unreadable, never its text; a Studio region saved before the state existed is upgraded from its filler text; a region with a state round-trips unchanged |
 | `WebUrlTest` | 6 | https only: https kept, http upgraded, a bare host gets `https://`, whitespace trimmed; `javascript:`/`file:`/`content:`/`intent:`/`data:` and non-URLs are null |
+| `CustomEndpointTest` | 18 | The "Custom AI" server address: a base is kept as written; whitespace trimmed; a pasted `…/chat/completions` (with or without a trailing slash) is reduced to its base; any version path is preserved and `/v1` is never added; blank, scheme-less, host-less, spaced, query, fragment, other-scheme and credential-bearing addresses are null; plain http is refused unless the test switch allows it |
 
 ### core:data (34)
 
@@ -78,7 +79,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 
 | Class | Tests | Covers |
 |---|---|---|
-| `RegistryAndQwenTest` | 28 | **Engine selection:** the default is Google Translate; only Gemini, Google Translate and the on-device models are offered; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Qwen runs on* reloads Qwen on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
+| `RegistryAndQwenTest` | 28 | **Engine selection:** the default is Google Translate; only Gemini, Custom AI, Google Translate and the on-device models are offered; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Qwen runs on* reloads Qwen on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
 | `ProviderEngineTest` | 9 | Against MockWebServer: 401 → `MissingKey`; a missing key never reaches the network; Gemini steps down past a request option a model refuses and remembers it; display names resolve to ids, Gemma models get no Gemini-only options; the model list keeps text models, Gemini first; OpenAI / OpenRouter send the user's model and key |
 | `LlmContractTest` | 15 | The cloud JSON contract: strict and tolerant parsing (prose, code fences), length mismatch and garbage are `Malformed`; HTTP status mapping, Gemini "high demand" is `Overloaded` with the provider's message; the retry policy is bounded and capped; glossary and montage mapping in the prompt; the reader's notes reach the cloud, on-device and per-item prompts and survive `withItems`; an on-device reply that repeats the source before its translation is cut to the translation, an ordinary colon is kept; a line holding another writing system than the target's (もちろん, गहराई in English) is retried, then its foreign words are cut; the reply's output-token budget grows with the items (300 + 120 each) up to 8,192 |
 | `PromptPartsTest` | 2 | Glossary terms and the last two preceding lines are rendered once, the same way in the cloud and on-device prompts |
@@ -131,7 +132,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `ContentChangeTest` | 4 | Page turn without a scroll: another page is a change; our own patches and a fading control are not; all-patched cannot tell |
 | `SameSiteTest` | 3 | Same-site test for pop-ups: subdomains share a site, public suffixes do not; case and trailing dot ignored |
 
-### feature:studio (100)
+### feature:studio (116)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -210,8 +211,8 @@ sites; ⋮ › *Reload* loads it.
 ## Not covered
 
 - **The real LiteRT-LM runtime, GPU and CPU**, and the real manga-ocr / detector sessions: only on a phone.
-- **Live provider APIs** (Gemini): MockWebServer only; the emulator's HTTPS to providers is intercepted on the
-  development machine, so real calls need a phone.
+- **Live provider APIs** (Gemini, and a user's own "Custom AI" server): MockWebServer only; the emulator's HTTPS to
+  providers is intercepted on the development machine, so real calls need a phone.
 - **Compose UI**: only the Studio's drag-to-reorder and review-canvas gestures (`GridReorderTest`, `PageCanvasGestureTest`). Settings, the reader, the site dialogs and the Studio screens are checked by hand.
 - **`mt.js` / `pt.js`**: the page scripts have no JavaScript tests; their Kotlin sides (anchoring, change detection)
   are unit-tested.

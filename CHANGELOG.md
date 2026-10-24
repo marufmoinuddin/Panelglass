@@ -18,6 +18,10 @@ workflow publishes the version's section as the GitHub Release notes.
 - **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector missed; with Replace, effects nothing can read are still erased.
 - **In-app updates**: a newer release is offered once a day (Update or Later), downloaded
 - More Japanese and Korean sound effects in the built-in dictionary; hiragana and katakana spellings, and an extra
+- **Custom AI**, a translation engine for your own OpenAI-compatible server. Name its address and the model in
+  Settings and paste your key: the app sends a plain text Chat Completions request to `<your address>/chat/completions`
+  and reads the text on the device, so no image ever leaves the phone. The address must be HTTPS; a pasted
+  `…/chat/completions` address is accepted and no `/v1` is added for you.
 
 ### Changed
 

@@ -55,6 +55,8 @@ class SettingsRepository @Inject constructor(
         val translationNotes = stringPreferencesKey("translationNotes")
         val updateCheckedAt = longPreferencesKey("updateCheckedAt")
         val autoUpdateCheck = booleanPreferencesKey("autoUpdateCheck")
+        /** The user's own OpenAI-compatible server for the "Custom AI" engine; an address, not a secret. */
+        val customBaseUrl = stringPreferencesKey("customBaseUrl")
         fun model(id: EngineId) = stringPreferencesKey("model_" + id.name)
         fun profile(id: EngineId, model: String) = stringPreferencesKey("profile_" + id.name + "_" + model)
     }
@@ -78,6 +80,7 @@ class SettingsRepository @Inject constructor(
             qwenBackend = p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) } ?: d.qwenBackend,
             translationNotes = p[K.translationNotes] ?: d.translationNotes,
             autoUpdateCheck = p[K.autoUpdateCheck] ?: d.autoUpdateCheck,
+            customBaseUrl = p[K.customBaseUrl] ?: d.customBaseUrl,
         )
     }
 
@@ -148,6 +151,14 @@ class SettingsRepository @Inject constructor(
     /** Model id for a provider that hosts several; blank clears it so the provider's default applies again. */
     suspend fun setModel(id: EngineId, model: String) {
         dataStore.edit { p -> model.trim().let { if (it.isEmpty()) p.remove(K.model(id)) else p[K.model(id)] = it } }
+    }
+
+    /**
+     * The user's own OpenAI-compatible server for the "Custom AI" engine. An address, not a secret, so it lives here
+     * and not in the key store. Blank clears it; the address is stored as given (the Settings screen normalizes it).
+     */
+    suspend fun setCustomBaseUrl(v: String) {
+        dataStore.edit { p -> v.trim().let { if (it.isEmpty()) p.remove(K.customBaseUrl) else p[K.customBaseUrl] = it } }
     }
 
     private inline fun <reified T : Enum<T>> enumOrNull(name: String): T? =
