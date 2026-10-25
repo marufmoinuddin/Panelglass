@@ -70,6 +70,25 @@ Measured 2026-09-27. Re-measure when LiteRT-LM, a model file or the trim policy 
 
 Both LiteRT-LM models ran on the GPU backend (`LiteRT-LM loaded on gpu`) in every run.
 
+### Second device — the backend setting and the whole-page scan
+
+| | |
+|---|---|
+| Phone | Xiaomi 15 |
+| SoC | SM8750-AB Snapdragon 8 Elite (Hexagon v79) |
+| Android | 15 |
+| Panelglass | 0.1.0 debug build, with the experimental NPU backend |
+
+The **Run models on** setting, the **offline-model library**, the **Custom AI** engine and **Translate whole page**
+were exercised on this phone and behaved as intended: the backend can be chosen, the app reports which backend ran,
+a model that is not compiled for the NPU is reported rather than silently falling back, and the whole-page scan
+scrolls the page, translates it and stops on request.
+
+**What this does not measure:** the CPU/GPU **timings** above were taken on the Motorola, not on this phone, and no
+model ran its inference *on the NPU* — the bundled QNN libraries match the chip (Hexagon v79), but a model only
+executes on the NPU when its file was compiled ahead-of-time for that chip. A generic `.litertlm` falls back to the
+GPU, and the app says so.
+
 ## Method
 
 **Page:** a Bilibili Manga chapter (paged reader, pages drawn on a `<canvas>`), Chinese → English, opened with the
