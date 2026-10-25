@@ -190,7 +190,7 @@ fun AddModelDialog(
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            "${sizeBytes / 1_048_576} MB",
+            if (sizeBytes >= 0) "${sizeBytes / 1_048_576} MB" else stringResource(UiR.string.size_unknown),
             fontFamily = Jakarta, fontWeight = FontWeight.W500, fontSize = 11.5.sp, color = Tokens.InkFaint,
         )
         if (ramWarning) {

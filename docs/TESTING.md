@@ -3,7 +3,7 @@
 What the automated tests cover, how to run them, and the checks that still need a phone. The architecture under test
 is in [ARCHITECTURE.md](ARCHITECTURE.md); the translation flow in [FLOW.md](FLOW.md).
 
-Counts as of 2026-10-25: **462 unit tests** in 70 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-25: **476 unit tests** in 72 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -78,6 +78,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `CustomOpenAiEngineTest` | 12 | The "Custom AI" engine against MockWebServer: the user's model and key reach the configured server at `<base>/chat/completions`; a pasted full address is not appended twice; the path the user wrote is the path called; the request is text only (no image, no base64); a missing key, a missing model and a missing address are typed failures that never reach the network; a plain http address is refused in production; a server that refuses `temperature` is asked once more without it, and twice-refused is a typed failure; 401 → `MissingKey` |
 | `HfCatalogTest` | 8 | The Hugging Face catalogue against MockWebServer (trimmed real fixtures): the search returns the author's repositories with their download counts; a gated repository is marked; a listing keeps only `.litertlm` files that have a 64-hex LFS hash (plain files, directories and unhashed files are dropped); the download address is pinned to the commit and URL-escaped; only `https://huggingface.co/` addresses are downloadable; a repository id is `owner/name` and nothing else; a bad id is refused before any request |
 | `UserModelTest` | 7 | A user's own model: the context budget is read from the file name (`ekv4096` → 4096, absent → 2048) and clamped to 512..32768; the file name is built from the id and never contains a path; hub and imported ids differ; the model survives a JSON round trip (an unknown field is ignored); it runs on the `LOCAL_USER` engine; a truncated file is refused |
+| `UserModelImportTest` | 10 | Importing a model file the user picked (Robolectric, a fake content Uri): a file named `my model (1).litertlm` is imported and keeps its name as the label while the copy is stored under a generated name; the extension is matched without regard to case (`MODEL.LITERTLM`); a name without the extension is refused; a file that is too small is refused; a stream that fails halfway leaves no half-written file behind; the same bytes twice do not make two models; a file that cannot be opened is refused; a file whose provider reports no size is still imported; the progress ends at the whole file; the picked name is never used as a path |
 | `UserModelLibraryTest` | 7 | The model library (Robolectric): the list is saved and read back; an empty list is saved as none; corrupt JSON reads as an empty library; the active model is set and cleared; an active model that is gone reads as no model; the same model twice is refused; only a Hugging Face address is ever downloaded |
 | `OfflineModelEngineTest` | 5 | The "Offline model" engine (Robolectric): without an active model, and with an active model whose file is not there, the failure is `ModelMissing`; a model whose file is really on the phone translates through its own engine with the on-device prompt; it is text only; the same model keeps the same engine |
 | `BackendPlannerTest` | 8 | The rule that turns the user's choice into the order the backends are tried in: Automatic takes the CPU on a phone with little RAM and the GPU otherwise, and never the NPU; CPU is the only backend; GPU falls back to the CPU; an emulator always uses the CPU; the NPU is tried first when it can be used, and each unusable status falls back to the GPU with the matching note |
@@ -169,6 +170,7 @@ Run with a device or emulator attached.
 |---|---|---|
 | `SecureKeyStoreInstrumentedTest` | `./gradlew :core:data:connectedDebugAndroidTest` | An API key round-trips across store instances and is encrypted at rest with the real AndroidKeyStore |
 | `PipelineInstrumentedTest` | `./gradlew :core:pipeline:connectedDebugAndroidTest` | A rendered page (white bubble on hatched art, free text on grey) goes through the whole pipeline to fitted patches; `ENCLOSED` / `FREE` hold; the second run comes from the patch cache. ML Kit Latin, no network |
+| `StringFormatArgsTest` | 4 | The string resources (core/ui, read straight from `src/main/res`): every translation uses the same arguments as the default; no string mixes positional and non-positional arguments; every index a string declares is used; and every call site passes the arguments its string needs — the check that catches the crash where a progress row formatted a four-argument string with two |
 
 ## Checks on a phone
 

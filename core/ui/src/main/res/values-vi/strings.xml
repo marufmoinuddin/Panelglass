@@ -168,12 +168,18 @@
     <string name="try_via">qua %1$s</string>
 
     <string name="size_mb">%1$d MB</string>
+    <string name="size_unknown" translatable="false">Size unknown</string>
     <string name="model_needs_ram">cần %1$d GB RAM</string>
     <string name="model_manga_ocr">OCR manga tiếng Nhật</string>
     <string name="model_manga_ready">dùng cho bóng thoại tiếng Nhật</string>
     <string name="model_manga_missing">đọc bóng thoại tiếng Nhật viết dọc tốt hơn nhiều so với mặc định</string>
     <string name="model_missing">%1$s · không có trên thiết bị này · %2$s</string>
     <string name="model_downloading">%1$s · %2$s · %3$s / %4$s · tiếp tục chạy trong nền</string>
+    <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
+    <string name="import_already_added" translatable="false">That model is already in your library</string>
+    <string name="import_failed" translatable="false">The model could not be imported</string>
+    <string name="import_too_small" translatable="false">That file is too small to be a model</string>
+    <string name="import_no_space" translatable="false">Not enough storage for the model</string>
     <string name="model_ready">%1$s · sẵn sàng · %2$s</string>
     <string name="model_failed">%1$s · không thành công · %2$s</string>
     <string name="download_downloading">đang tải xuống</string>

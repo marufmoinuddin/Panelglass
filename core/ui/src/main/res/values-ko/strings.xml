@@ -168,12 +168,18 @@
     <string name="try_via">%1$s 사용</string>
 
     <string name="size_mb">%1$d MB</string>
+    <string name="size_unknown" translatable="false">Size unknown</string>
     <string name="model_needs_ram">RAM %1$d GB 필요</string>
     <string name="model_manga_ocr">일본어 만화 OCR</string>
     <string name="model_manga_ready">일본어 말풍선에 사용</string>
     <string name="model_manga_missing">세로쓰기 일본어 말풍선을 기본값보다 훨씬 정확하게 읽습니다</string>
     <string name="model_missing">%1$s · 이 기기에 없음 · %2$s</string>
     <string name="model_downloading">%1$s · %2$s · %3$s / %4$s · 백그라운드에서 계속됩니다</string>
+    <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
+    <string name="import_already_added" translatable="false">That model is already in your library</string>
+    <string name="import_failed" translatable="false">The model could not be imported</string>
+    <string name="import_too_small" translatable="false">That file is too small to be a model</string>
+    <string name="import_no_space" translatable="false">Not enough storage for the model</string>
     <string name="model_ready">%1$s · 준비됨 · %2$s</string>
     <string name="model_failed">%1$s · 실패 · %2$s</string>
     <string name="download_downloading">다운로드 중</string>

@@ -7,6 +7,16 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Importing a model file could not work.** The progress row formatted a string with fewer arguments than it
+  needed, which took the Settings screen down as soon as an import started. The row has its own string now, and the
+  screen checks every string it shows against the arguments that string declares.
+- **Importing a model file now works from the file manager.** The extension is matched without regard to case
+  (`MODEL.LITERTLM` is accepted), the file is copied under a generated name so its own name is never used as a path,
+  a file that is not a model or is too small is refused with a message instead of being added and found broken later,
+  the same file twice does not make two models, and a failed import says why instead of failing silently.
+
 ### Added
 
 - **Translate whole page**: the three-dot menu's new item scrolls the page by itself, from the top to the bottom, and

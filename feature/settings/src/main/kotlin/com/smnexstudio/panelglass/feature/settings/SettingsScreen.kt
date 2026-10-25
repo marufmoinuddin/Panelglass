@@ -113,6 +113,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.offset
+import kotlinx.coroutines.delay
 
 /**
  * @param openKeyFor an `EngineId` name whose key dialog opens on arrival (the reader hands off here).
@@ -189,7 +190,7 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
         if (uri != null) vm.importInfo(uri)?.let { pendingImport = uri; importFrom = it }
     }
     // A one-shot message (an import that failed, a model already added) is shown once, then cleared.
-    LaunchedEffect(userMessage) { if (userMessage != null) { vm.clearMessage() } }
+    LaunchedEffect(userMessage) { if (userMessage != null) { delay(4_000); vm.clearMessage() } }
 
     Column(Modifier.fillMaxSize().themeBackground(LocalAppTheme.current).verticalScroll(rememberScrollState()).padding(bottom = 28.dp)) {
         Text(stringResource(UiR.string.settings_title), style = MaterialTheme.typography.headlineSmall, color = Tokens.Ink, modifier = Modifier.padding(16.dp, 14.dp, 16.dp, 0.dp))
@@ -321,8 +322,17 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
             if (importProgress != null) {
                 CardDivider()
                 Text(
-                    stringResource(UiR.string.model_downloading, "model", "${(importProgress!! * 100).toInt()}%"),
+                    stringResource(UiR.string.model_import_progress, "${(importProgress!! * 100).toInt()}%"),
                     style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft,
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
+                )
+            }
+            // Why an import did not work, or that a model is already there: shown once, then it goes.
+            userMessage?.let { msg ->
+                CardDivider()
+                Text(
+                    msg,
+                    style = MaterialTheme.typography.bodySmall, color = Tokens.Error,
                     modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
                 )
             }
@@ -442,7 +452,7 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
     importFrom?.let { (name, size) ->
         val ramWarning = size * 5 / 2 > DeviceMemory.totalBytes(context)
         AddModelDialog(
-            title = name.removeSuffix(".litertlm"),
+            title = vm.importLabel(name),
             sizeBytes = size,
             suggestedTokens = UserModel.maxTokensFromFileName(name),
             ramWarning = ramWarning,

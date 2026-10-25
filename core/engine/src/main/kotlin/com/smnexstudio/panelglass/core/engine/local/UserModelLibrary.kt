@@ -3,6 +3,7 @@ package com.smnexstudio.panelglass.core.engine.local
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import com.smnexstudio.panelglass.core.data.download.SystemDownloads
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
 import com.smnexstudio.panelglass.core.model.UserModel
@@ -73,8 +74,13 @@ class UserModelLibrary @Inject constructor(
     }
 
     /**
-     * Imports a `.litertlm` file from the phone's storage. The file is copied into the models directory while its
-     * SHA-256 is computed, and only kept when the copy matches what was read.
+     * Imports a `.litertlm` file from the phone's storage.
+     *
+     * The file is copied into the models directory while its SHA-256 is computed. The hash is only used to name the
+     * model and to recognise the same file twice: an imported file has no published hash to be compared against, so
+     * nothing about its content is refused.
+     *
+     * The picked file's own name is never used as a path: the copy is written under a generated name.
      */
     suspend fun importFile(
         uri: Uri,
@@ -83,29 +89,46 @@ class UserModelLibrary @Inject constructor(
         onProgress: (Long, Long) -> Unit,
     ): Result<UserModel> = withContext(Dispatchers.IO) {
         val info = info(uri) ?: return@withContext Result.failure(IOException(NOT_LITERTLM))
-        if (!info.first.endsWith(".litertlm")) return@withContext Result.failure(IOException(NOT_LITERTLM))
+        val name = info.first
+        if (!isModelFileName(name)) return@withContext Result.failure(IOException(NOT_LITERTLM))
         val size = info.second
-        if (!hasRoom(size)) return@withContext Result.failure(IOException(NOT_ENOUGH_SPACE))
+        // A size the provider does not report is unknown, not zero: the free space check is skipped then.
+        if (size > 0 && !hasRoom(size)) return@withContext Result.failure(IOException(NOT_ENOUGH_SPACE))
 
         val root = downloads.root() ?: return@withContext Result.failure(IOException("Storage unavailable"))
-        val tmp = File(root, "models/user-import.tmp")
+        val tmp = File(root, "models/import-${System.currentTimeMillis()}.tmp")
+        var read = 0L
         try {
             tmp.parentFile?.mkdirs()
             val digest = MessageDigest.getInstance("SHA-256")
-            var read = 0L
-            context.contentResolver.openInputStream(uri)?.use { input ->
+            val input = context.contentResolver.openInputStream(uri)
+                ?: return@withContext Result.failure(IOException("Could not read the file"))
+            input.use { input ->
                 tmp.outputStream().use { out ->
                     val buf = ByteArray(BUFFER)
+                    var lastReport = 0L
                     while (true) {
                         val n = input.read(buf)
                         if (n < 0) break
                         digest.update(buf, 0, n)
                         out.write(buf, 0, n)
                         read += n
-                        onProgress(read, size)
+                        // The progress is reported a few times a second, not once per buffer: a multi-gigabyte file
+                        // would otherwise spend all its time in the UI.
+                        val now = System.currentTimeMillis()
+                        if (now - lastReport >= PROGRESS_INTERVAL_MS) {
+                            lastReport = now
+                            onProgress(read, if (size > 0) size else read)
+                        }
                     }
+                    out.flush()
                 }
-            } ?: return@withContext Result.failure(IOException("Could not read the file"))
+            }
+            if (read < MIN_IMPORT_BYTES) {
+                tmp.delete()
+                return@withContext Result.failure(IOException(TOO_SMALL))
+            }
+            onProgress(read, if (size > 0) size else read)
 
             val sha = hex(digest.digest())
             val id = UserModel.fileId(sha)
@@ -116,7 +139,7 @@ class UserModelLibrary @Inject constructor(
             }
             val m = UserModel(
                 id = id,
-                label = label.trim().ifEmpty { info.first.removeSuffix(".litertlm") },
+                label = label.trim().ifEmpty { labelFor(name) },
                 fileName = UserModel.fileNameFor(id),
                 url = "",
                 bytes = tmp.length(),
@@ -124,12 +147,13 @@ class UserModelLibrary @Inject constructor(
                 maxTokens = UserModel.clampTokens(maxTokens),
                 source = "file",
             )
-            // Moves the file into place and marks it verified; a file that does not match is deleted.
+            // Moves the file into place and marks it verified; the hash is the one just computed over the copy.
             downloads.place(tmp, "models/" + m.fileName, m.sha256)
             settings.saveUserModels(existing + m)
             Result.success(m)
         } catch (e: Exception) {
             tmp.delete()
+            Log.w("UserModelLibrary", "import failed: ${e.javaClass.simpleName} after $read bytes")
             Result.failure(e)
         }
     }
@@ -146,10 +170,13 @@ class UserModelLibrary @Inject constructor(
     /** The model the "Offline model" engine runs. */
     suspend fun setActive(id: String) = settings.setActiveUserModel(id)
 
-    /** The display name and size of a file the user picked, or null when it is not a `.litertlm` file. */
+    /**
+     * The display name and size of a file the user picked. The size is -1 when the provider does not report one.
+     * Null when the file cannot be read at all.
+     */
     fun info(uri: Uri): Pair<String, Long>? {
         var name: String? = null
-        var size = 0L
+        var size = -1L
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
             if (c.moveToFirst()) {
                 val nameIndex = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -160,6 +187,20 @@ class UserModelLibrary @Inject constructor(
         }
         val n = name ?: return null
         return n to size
+    }
+
+    /**
+     * Whether a picked file's name says it is a LiteRT-LM model. The extension is matched without regard to case,
+     * so a file the phone shows as `MODEL.LITERTLM` is accepted.
+     */
+    fun isModelFileName(name: String): Boolean = name.trim().endsWith(MODEL_EXTENSION, ignoreCase = true)
+
+    /**
+     * The name a picked file is shown under: its own name without the extension, whatever the case of either.
+     */
+    fun labelFor(name: String): String {
+        val n = name.trim()
+        return if (n.endsWith(MODEL_EXTENSION, ignoreCase = true)) n.dropLast(MODEL_EXTENSION.length).trim() else n
     }
 
     /**
@@ -177,8 +218,18 @@ class UserModelLibrary @Inject constructor(
         /** Free space kept on top of the file itself. */
         const val HEADROOM = 200L * 1024 * 1024
         private const val BUFFER = 1 shl 20
+        /** How often the import reports its progress, in milliseconds. */
+        private const val PROGRESS_INTERVAL_MS = 250L
+        /** The extension a picked file must have. */
+        const val MODEL_EXTENSION = ".litertlm"
+        /**
+         * The smallest file an import accepts. A real LiteRT-LM model is at least a few hundred megabytes; anything
+         * below this is not one, and is refused rather than added and found broken later.
+         */
+        const val MIN_IMPORT_BYTES = 1L * 1024 * 1024
         const val NOT_ENOUGH_SPACE = "Not enough storage"
         const val ALREADY_ADDED = "Already added"
         const val NOT_LITERTLM = "Only a .litertlm model file can be added"
+        const val TOO_SMALL = "That file is too small to be a model"
     }
 }

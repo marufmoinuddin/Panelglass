@@ -217,19 +217,34 @@ class SettingsViewModel @Inject constructor(
                 if (total > 0) _importProgress.value = (done.toFloat() / total).coerceIn(0f, 1f)
             }
                 .onSuccess { _importProgress.value = null }
-                .onFailure { _importProgress.value = null; _message.value = it.message ?: context.getString(UiR.string.browse_error) }
+                .onFailure {
+                    _importProgress.value = null
+                    _message.value = importErrorText(it)
+                }
         }
+    }
+
+    /** What the user is told when an import fails; never the exception's own text, which can name a path. */
+    private fun importErrorText(e: Throwable): String = when (e.message) {
+        UserModelLibrary.NOT_LITERTLM -> context.getString(UiR.string.browse_only_litertlm)
+        UserModelLibrary.NOT_ENOUGH_SPACE -> context.getString(UiR.string.import_no_space)
+        UserModelLibrary.TOO_SMALL -> context.getString(UiR.string.import_too_small)
+        UserModelLibrary.ALREADY_ADDED -> context.getString(UiR.string.import_already_added)
+        else -> context.getString(UiR.string.import_failed)
     }
 
     /** The display name and size of a file the user picked; null when it is not a `.litertlm` file. */
     fun importInfo(uri: android.net.Uri): Pair<String, Long>? {
         val info = userModels.info(uri)
-        if (info == null || !info.first.endsWith(".litertlm")) {
+        if (info == null || !userModels.isModelFileName(info.first)) {
             _message.value = context.getString(UiR.string.browse_only_litertlm)
             return null
         }
         return info
     }
+
+    /** The name a picked file is shown under: its own name without the extension, whatever the case of either. */
+    fun importLabel(name: String): String = userModels.labelFor(name)
 
     /** The message for a catalogue failure, without the provider's body. */
     private fun browseError(f: EngineFailure): String = when (f) {

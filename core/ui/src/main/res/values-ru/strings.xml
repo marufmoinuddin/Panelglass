@@ -180,12 +180,18 @@
     <string name="try_via">через %1$s</string>
 
     <string name="size_mb">%1$d МБ</string>
+    <string name="size_unknown" translatable="false">Size unknown</string>
     <string name="model_needs_ram">нужно %1$d ГБ ОЗУ</string>
     <string name="model_manga_ocr">Распознавание японской манги</string>
     <string name="model_manga_ready">используется для японских реплик</string>
     <string name="model_manga_missing">читает вертикальные японские реплики гораздо лучше стандартного распознавания</string>
     <string name="model_missing">%1$s · нет на устройстве · %2$s</string>
     <string name="model_downloading">%1$s · %2$s · %3$s из %4$s · продолжается в фоне</string>
+    <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
+    <string name="import_already_added" translatable="false">That model is already in your library</string>
+    <string name="import_failed" translatable="false">The model could not be imported</string>
+    <string name="import_too_small" translatable="false">That file is too small to be a model</string>
+    <string name="import_no_space" translatable="false">Not enough storage for the model</string>
     <string name="model_ready">%1$s · готово · %2$s</string>
     <string name="model_failed">%1$s · ошибка · %2$s</string>
     <string name="download_downloading">скачивание</string>

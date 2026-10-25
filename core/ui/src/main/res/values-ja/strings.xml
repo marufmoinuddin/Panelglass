@@ -168,12 +168,18 @@
     <string name="try_via">%1$s で翻訳</string>
 
     <string name="size_mb">%1$d MB</string>
+    <string name="size_unknown" translatable="false">Size unknown</string>
     <string name="model_needs_ram">RAM %1$d GB が必要</string>
     <string name="model_manga_ocr">日本語マンガ OCR</string>
     <string name="model_manga_ready">日本語の吹き出しに使用</string>
     <string name="model_manga_missing">縦書きの日本語の吹き出しを標準よりはるかに正確に読み取ります</string>
     <string name="model_missing">%1$s · この端末にありません · %2$s</string>
     <string name="model_downloading">%1$s · %2$s · %3$s / %4$s · バックグラウンドで続行します</string>
+    <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
+    <string name="import_already_added" translatable="false">That model is already in your library</string>
+    <string name="import_failed" translatable="false">The model could not be imported</string>
+    <string name="import_too_small" translatable="false">That file is too small to be a model</string>
+    <string name="import_no_space" translatable="false">Not enough storage for the model</string>
     <string name="model_ready">%1$s · 準備完了 · %2$s</string>
     <string name="model_failed">%1$s · 失敗 · %2$s</string>
     <string name="download_downloading">ダウンロード中</string>

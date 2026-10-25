@@ -168,12 +168,18 @@
     <string name="try_via">來自 %1$s</string>
 
     <string name="size_mb">%1$d MB</string>
+    <string name="size_unknown" translatable="false">Size unknown</string>
     <string name="model_needs_ram">需要 %1$d GB 記憶體</string>
     <string name="model_manga_ocr">日文漫畫 OCR</string>
     <string name="model_manga_ready">用於日文對話框</string>
     <string name="model_manga_missing">辨識直排日文對話框的效果遠優於預設方式</string>
     <string name="model_missing">%1$s · 不在此裝置上 · %2$s</string>
     <string name="model_downloading">%1$s · %2$s · %3$s / %4$s · 將在背景繼續</string>
+    <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
+    <string name="import_already_added" translatable="false">That model is already in your library</string>
+    <string name="import_failed" translatable="false">The model could not be imported</string>
+    <string name="import_too_small" translatable="false">That file is too small to be a model</string>
+    <string name="import_no_space" translatable="false">Not enough storage for the model</string>
     <string name="model_ready">%1$s · 就緒 · %2$s</string>
     <string name="model_failed">%1$s · 失敗 · %2$s</string>
     <string name="download_downloading">正在下載</string>

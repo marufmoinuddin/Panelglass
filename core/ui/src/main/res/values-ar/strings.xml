@@ -188,12 +188,18 @@
     <string name="try_via">عبر %1$s</string>
 
     <string name="size_mb">%1$d ميغابايت</string>
+    <string name="size_unknown" translatable="false">Size unknown</string>
     <string name="model_needs_ram">يتطلّب ذاكرة %1$d غيغابايت</string>
     <string name="model_manga_ocr">التعرّف على نصوص المانغا اليابانية</string>
     <string name="model_manga_ready">يُستخدم لفقاعات الحوار اليابانية</string>
     <string name="model_manga_missing">يقرأ فقاعات الحوار اليابانية العمودية أفضل بكثير من الطريقة التلقائية</string>
     <string name="model_missing">%1$s · غير موجود على هذا الجهاز · %2$s</string>
     <string name="model_downloading">%1$s · %2$s · %3$s من %4$s · يستمر في الخلفية</string>
+    <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
+    <string name="import_already_added" translatable="false">That model is already in your library</string>
+    <string name="import_failed" translatable="false">The model could not be imported</string>
+    <string name="import_too_small" translatable="false">That file is too small to be a model</string>
+    <string name="import_no_space" translatable="false">Not enough storage for the model</string>
     <string name="model_ready">%1$s · جاهز · %2$s</string>
     <string name="model_failed">%1$s · تعذّر · %2$s</string>
     <string name="download_downloading">جارٍ التنزيل</string>
