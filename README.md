@@ -162,6 +162,9 @@ lettered pages, or the clean pages without any text.
 - **Translate the page itself.** ⋮ › *Translate page* translates the site's own text (titles, chapter lists,
   comments) in place, like Chrome's translate bar: the language is detected, English is the default target, and
   both can be changed. On-device with ML Kit; *Show original* puts the page back.
+- **Translate a whole page at once.** ⋮ › *Translate whole page* scrolls the page by itself, from the top to the
+  bottom, and translates every screen it passes, so a long chapter is translated without you scrolling. The
+  translations stay on the page while you are on it; the progress is in the bottom bar, and a touch stops the scan.
 - **Studio for your own files.** Import images, a PDF or a CBZ, translate the whole chapter, review and restyle
   every bubble, and export images, CBZ or ZIP, translated or clean ([more](#studio-translate-your-own-chapters)).
 - **Four themes and 21 lettering fonts** (a comic font for every target language, or your own), and a
