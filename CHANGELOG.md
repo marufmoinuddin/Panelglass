@@ -9,6 +9,11 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ### Added
 
+- **Translate whole page**: the three-dot menu's new item scrolls the page by itself, from the top to the bottom, and
+  translates every screen it passes. The translations stay on the page while you are on it, so scrolling back shows
+  them at once. The progress is in the bottom bar; **Cancel scan** stops it and scrolls back to where you started, and
+  a touch on the page stops it where you are. An engine that needs a key or runs on the device asks first how many
+  screens it will be. Only pages that scroll as a window (vertical readers) are supported.
 - **Run models on** setting: choose Automatic, CPU, GPU or (experimental, Snapdragon only) NPU for every on-device
   model; the app shows what actually ran.
 - **Offline models**: bring your own LiteRT-LM model. Settings › Models › **Browse models** searches the Hugging Face

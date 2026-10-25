@@ -3,7 +3,7 @@
 What the automated tests cover, how to run them, and the checks that still need a phone. The architecture under test
 is in [ARCHITECTURE.md](ARCHITECTURE.md); the translation flow in [FLOW.md](FLOW.md).
 
-Counts as of 2026-10-25: **450 unit tests** in 69 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-25: **462 unit tests** in 70 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -123,6 +123,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | Class | Tests | Covers |
 |---|---|---|
 | `BlockListTest` | 11 | Hosts and AdBlock formats parsed; exact hosts and their subdomains blocked, parents and unrelated hosts not; `@@` exceptions win; wildcard and context-scoped rules skipped; localhost ignored; cached form round-trips |
+| `PageScanPlanTest` | 12 | The plan of a whole-page scan: a step is 70% of the viewport, the stops ascend and end at the bottom of the page, a page that fits is one stop, a very long page is capped, the patches that do not fit in memory go first when they are the farthest from the viewport, and the page key drops the fragment |
 | `PatchAnchorTest` | 8 | A patch is anchored to the image under its centre; it follows a reader moving its page in its own layer and scroll anchoring; no key, no anchor; an image off screen leaves the patch in place; the anchor is the same place on the art at any zoom; a patch's CSS rect scales with the zoom; one bubble captured at two zooms is a duplicate |
 | `ContentChangeTest` | 4 | Page turn without a scroll: another page is a change; our own patches and a fading control are not; all-patched cannot tell |
 | `SameSiteTest` | 3 | Same-site test for pop-ups: subdomains share a site, public suffixes do not; case and trailing dot ignored |
