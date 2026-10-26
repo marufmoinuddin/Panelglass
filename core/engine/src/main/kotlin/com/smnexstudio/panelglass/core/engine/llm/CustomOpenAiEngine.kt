@@ -44,6 +44,14 @@ class CustomOpenAiEngine @Inject constructor(
     /** Text only: the crops and the SFX montage stay on the phone. */
     override val acceptsImages: Boolean get() = false
 
+    /**
+     * The retry stands on its own.
+     *
+     * A server at home may rewrite a multi-turn history — the original input dropped, the order reversed — so a
+     * retry that asks "your previous reply was wrong" cannot work. The retry carries the input with it instead.
+     */
+    override val selfContainedRetry: Boolean get() = true
+
     /** The address of the last call, so the connection warm-up reaches the same host. */
     @Volatile private var lastBase: String = ""
     override val warmUrl: String get() = lastBase.trimEnd('/') + "/"
@@ -98,8 +106,31 @@ class CustomOpenAiEngine @Inject constructor(
             if (refused == null || !refused.reason.startsWith("HTTP 400")) throw e
             call { support.post(id, endpoint.chatUrl, headers, body(model, system, turns, maxOutputTokens, withTemperature = false)) }
         }
-        return reply.str("choices", "0", "message", "content") ?: throw EngineException(EngineFailure.Malformed(id))
+        return contentOf(reply) ?: throw EngineException(EngineFailure.Malformed(id))
     }
+
+    /**
+     * The text of the reply.
+     *
+     * The reply is read from `choices[0].message.content`, as every OpenAI-compatible server writes it. Some
+     * servers write that content as a list of parts instead of a string, so the text of the text parts is joined.
+     */
+    private fun contentOf(reply: JsonElement): String? {
+        val content = reply.at("choices")?.at(0)?.at("message")?.at("content") ?: return null
+        if (content is JsonArray) {
+            val text = content.mapNotNull { part ->
+                val o = part as? JsonObject ?: return@mapNotNull null
+                if ((o["type"]?.asString() ?: "text") != "text") return@mapNotNull null
+                o["text"]?.asString()
+            }.joinToString("")
+            return text.ifEmpty { null }
+        }
+        return (content as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+    }
+
+    /** The element at [key] of an object, or at [index] of a list. */
+    private fun JsonElement.at(key: String): JsonElement? = (this as? JsonObject)?.get(key)
+    private fun JsonElement.at(index: Int): JsonElement? = (this as? JsonArray)?.getOrNull(index)
 
     /**
      * The model list of a server, for the "Refresh" action: the ids the server itself offers.

@@ -9,6 +9,9 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ### Added
 
+- **A warning when the model is too small to follow the translation format.** A model of about a billion parameters or
+  less usually cannot be told to answer with a JSON array; the sheet says so under the model field, without stopping
+  you from saving it.
 - **Custom AI can use a model server on your own network.** A server at home — `http://192.168.0.15:8910/v1` — is
   now reachable over plain http, and the API key for it is **optional**: leave the key empty and the request goes
   out with no `Authorization` header at all. The address is read as you type it and the sheet says at once whether it
@@ -19,6 +22,14 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ### Fixed
 
+- **The reply of a local server is read more patiently.** A server at home may answer with a bare object instead of an
+  array, with the array inside a code fence, wrapped in a `translations` key, or with the translation under
+  `english` or `translation`; all of those are read now. A reply that cannot be read is a plain "malformed" failure
+  instead of a crash, and a reply whose text holds brackets is not cut apart by them.
+- **The retry no longer depends on the conversation.** Some local servers rewrite a multi-turn history — the original
+  input dropped, the order reversed — so a retry that asked "your previous reply was wrong" could never work. The
+  Custom AI engine now sends the input again with the correction, in one message, and the system prompt shows what
+  a reply looks like when there is a single item.
 - **Plain http is refused to every address that is not on the local network, including IPv6 addresses that only look
   local; the update check and downloads follow the same rule.** An IPv6 address such as `2606:4700::ffff:c0a8:1`
   carries `192.168.0.1` in its last four bytes and was judged to be on the local network, so plain http to it was
