@@ -8,7 +8,7 @@ Counts as of 2026-10-24: **425 unit tests** in 65 classes, **2 instrumented test
 
 Counts as of 2026-10-25: **440 unit tests** in 67 classes, **2 instrumented tests**, all passing.
 Counts as of 2026-10-25: **450 unit tests** in 69 classes, **2 instrumented tests**, all passing.
-Counts as of 2026-10-26: **PENDING unit tests** in **PENDING classes**, **2 instrumented tests**, all passing.
+Counts as of 2026-10-26: **561 unit tests** in 90 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -196,6 +196,12 @@ Run with a device or emulator attached.
 | `SecureKeyStoreInstrumentedTest` | `./gradlew :core:data:connectedDebugAndroidTest` | An API key round-trips across store instances and is encrypted at rest with the real AndroidKeyStore |
 | `PipelineInstrumentedTest` | `./gradlew :core:pipeline:connectedDebugAndroidTest` | A rendered page (white bubble on hatched art, free text on grey) goes through the whole pipeline to fitted patches; `ENCLOSED` / `FREE` hold; the second run comes from the patch cache. ML Kit Latin, no network |
 | `StringFormatArgsTest` | 4 | The string resources (core/ui, read straight from `src/main/res`): every translation uses the same arguments as the default; no string mixes positional and non-positional arguments; every index a string declares is used; and every call site passes the arguments its string needs — the check that catches the crash where a progress row formatted a four-argument string with two |
+| `PageScanPlanTest` | 12 | The plan of a whole-page scan: a step covers 70% of the viewport; the stops of a three-screen page; a page that fits is one stop; a page of one and a half screens; the last stop is always the bottom and the stops ascend; a very long page is capped; under the memory budget nothing is dropped; over it the farthest from the viewport goes first; it stops as soon as it fits; a budget of zero keeps nothing; equal distances are dropped in order; the page key drops the fragment |
+
+| `TranslationPromptTest` | 10 | The user's own translation instructions: the prompt reaches the cloud engines' prompt; it reaches the on-device models' prompt; a subset request keeps it; an empty prompt is not in the prompt; the prompt is capped and trimmed, in the local prompt too; the prompt is cleaned; the settings prompt reaches the config; the prompt and the series notes are separate; the config carries the prompt |
+
+| `TranslationPromptSettingTest` | 6 | The prompt setting (Robolectric): it is saved and read back; an empty prompt is saved as none; it is trimmed and capped; it survives a new repository over the same store; it does not disturb the other settings; it is stored under its own key |
+
 
 ## Checks on a phone
 
