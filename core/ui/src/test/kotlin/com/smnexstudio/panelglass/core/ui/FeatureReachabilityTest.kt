@@ -44,6 +44,10 @@ class FeatureReachabilityTest {
         "deleteTerm" to "called through the series sheet's own row",
         "saveSeriesNotes" to "called through the series sheet's own callback",
         "clearScreenPatches" to "called by the view model itself when the page changes",
+        // Found by the guard once its regexes learned to look past the first function of a file: these two have
+        // been unreachable for a long time. They are upstream's, and they are kept rather than deleted.
+        "move" to "no caller in the Studio's import screen: the reordering it does is not offered there",
+        "pickDestination" to "no caller in the Studio's import screen: the destination is chosen another way",
     )
 
     /** The view models: every public function of one is a feature entry point. */
@@ -85,8 +89,10 @@ class FeatureReachabilityTest {
             for (m in Regex("^ {4}fun\\s+(\\w+)\\s*\\(", RegexOption.MULTILINE).findAll(vm)) {
                 val fn = m.groupValues[1]
                 // A function that only returns a value is a getter, not an action.
-                val isAction = Regex("^ {4}fun\\s+" + Regex.escape(fn) + "\\s*\\([^)]*\\)\\s*=\\s*viewModelScope\\.launch").containsMatchIn(vm)
-                    || Regex("^ {4}fun\\s+" + Regex.escape(fn) + "\\s*\\([^)]*\\)\\s*\\{").containsMatchIn(vm)
+                // The MULTILINE flag matters: without it `^` only matches the start of the file, and every
+                // function but the first one is skipped as a getter.
+                val isAction = Regex("^ {4}fun\\s+" + Regex.escape(fn) + "\\s*\\([^)]*\\)\\s*=\\s*viewModelScope\\.launch", RegexOption.MULTILINE).containsMatchIn(vm)
+                    || Regex("^ {4}fun\\s+" + Regex.escape(fn) + "\\s*\\([^)]*\\)\\s*\\{", RegexOption.MULTILINE).containsMatchIn(vm)
                 if (!isAction) continue
                 // The call may end in a trailing lambda (`vm.startFullPage { ... }`).
                 val called = ui.values.any { Regex("\\." + Regex.escape(fn) + "\\s*[({]").containsMatchIn(it) }
