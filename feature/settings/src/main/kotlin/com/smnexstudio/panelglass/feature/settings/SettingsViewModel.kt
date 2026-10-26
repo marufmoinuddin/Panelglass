@@ -10,8 +10,10 @@ import com.smnexstudio.panelglass.core.model.Manga
 import com.smnexstudio.panelglass.core.engine.EngineRegistry
 import com.smnexstudio.panelglass.core.engine.EngineResolution
 import com.smnexstudio.panelglass.core.engine.llm.GeminiEngine
+import com.smnexstudio.panelglass.core.model.KeyRequirement
 import com.smnexstudio.panelglass.core.model.ModelState
 import com.smnexstudio.panelglass.core.model.SfxMode
+import com.smnexstudio.panelglass.core.data.secure.SecureKeyStore
 import com.smnexstudio.panelglass.core.data.update.AppUpdates
 import android.content.Context
 import com.smnexstudio.panelglass.core.engine.local.DeviceMemory
@@ -115,6 +117,7 @@ class SettingsViewModel @Inject constructor(
     private val userModels: UserModelLibrary,
     private val catalog: HfCatalog,
     private val localEngines: LocalEngines,
+    private val keyStore: SecureKeyStore,
 ) : ViewModel() {
     val settings: StateFlow<Settings> = repo.settings.stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
     val keys: StateFlow<Set<EngineId>> = registry.observeKeys().stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
@@ -338,6 +341,15 @@ class SettingsViewModel @Inject constructor(
     /** Explicit provider choice. A keyed engine without a key is not selected; the key sheet is requested instead. */
     fun selectEngine(id: EngineId) = viewModelScope.launch {
         if (id.needsKey && !registry.hasKey(id)) { _needsKey.value = id; return@launch }
+        // An engine whose key is optional still needs to be configured: an address and a model.
+        if (id.keyRequirement == KeyRequirement.OPTIONAL_KEY) {
+            val base = repo.current().customBaseUrl
+            val parsed = CustomEndpoint.parse(base)
+            if (parsed !is CustomEndpoint.Parsed.Ok || repo.current().modelFor(id).isBlank()) {
+                _needsKey.value = id
+                return@launch
+            }
+        }
         repo.setEngine(id)
     }
 
@@ -350,12 +362,33 @@ class SettingsViewModel @Inject constructor(
      */
     fun saveEngineConfig(id: EngineId, key: String?, model: String?, baseUrl: String?) {
         // Read the pending selection now: the sheet dismisses (and clears it) right after calling us.
-        val completesSelection = _needsKey.value == id && (key != null || id in keys.value)
+        var completesSelection = _needsKey.value == id && (key != null || id in keys.value)
         _needsKey.value = null
         viewModelScope.launch {
-            if (key != null) registry.setKey(id, key)
-            if (model != null && id.hasModel) repo.setModel(id, model)
-            if (baseUrl != null && id == EngineId.CUSTOM) repo.setCustomBaseUrl(CustomEndpoint.normalize(baseUrl) ?: baseUrl)
+            if (id.keyRequirement == KeyRequirement.OPTIONAL_KEY) {
+                // A blank key means "no key": the saved one is removed. A null key keeps it.
+                if (key != null) registry.setKey(id, key.takeIf { it.isNotBlank() })
+                if (model != null && id.hasModel) repo.setModel(id, model)
+                if (baseUrl != null) {
+                    val parsed = CustomEndpoint.parse(baseUrl)
+                    val stored = (parsed as? CustomEndpoint.Parsed.Ok)?.chatUrl?.removeSuffix(CustomEndpoint.COMPLETIONS_PATH) ?: baseUrl
+                    repo.setCustomBaseUrl(stored)
+                }
+                // The engine is ready when it has an address and a model, with or without a key.
+                if (_needsKey.value == null && CustomEndpoint.parse(repo.current().customBaseUrl) is CustomEndpoint.Parsed.Ok &&
+                    repo.current().modelFor(id).isNotBlank()
+                ) {
+                    completesSelection = true
+                }
+            } else {
+                if (key != null) registry.setKey(id, key)
+                if (model != null && id.hasModel) repo.setModel(id, model)
+                if (baseUrl != null && id == EngineId.CUSTOM) {
+                    val parsed = CustomEndpoint.parse(baseUrl)
+                    val stored = (parsed as? CustomEndpoint.Parsed.Ok)?.chatUrl?.removeSuffix(CustomEndpoint.COMPLETIONS_PATH) ?: baseUrl
+                    repo.setCustomBaseUrl(stored)
+                }
+            }
             if (completesSelection) repo.setEngine(id)
         }
     }
@@ -375,16 +408,27 @@ class SettingsViewModel @Inject constructor(
      * saved key. Only Gemini offers a listing today; for other engines the field stays free text.
      */
     fun loadModels(engine: EngineId, typedKey: String?) {
-        if (engine != EngineId.GEMINI) { _modelChoices.value = ModelChoices(); return }
+        if (engine != EngineId.GEMINI && engine != EngineId.CUSTOM) { _modelChoices.value = ModelChoices(); return }
         modelsJob?.cancel()
         modelsJob = viewModelScope.launch {
             _modelChoices.update { it.copy(loading = true, error = null) }
             _modelChoices.value = try {
-                ModelChoices(models = gemini.listModels(typedKey).map { it.id to it.displayName })
+                when (engine) {
+                    EngineId.GEMINI -> ModelChoices(models = gemini.listModels(typedKey).map { it.id to it.displayName })
+                    EngineId.CUSTOM -> {
+                        val base = typedKey?.takeIf { it.isNotBlank() } ?: repo.current().customBaseUrl
+                        val parsed = CustomEndpoint.parse(base)
+                        if (parsed is CustomEndpoint.Parsed.Bad) throw EngineException(EngineFailure.Unavailable(engine, parsed.problem.toString()))
+                        val key = typedKey?.takeIf { it.isNotBlank() } ?: keyStore.get(engine).orEmpty()
+                        val list = registry.customEngineProbe(engine, key)
+                        ModelChoices(models = list)
+                    }
+                    else -> ModelChoices()
+                }
             } catch (e: EngineException) {
                 ModelChoices(error = when (val f = e.failure) {
                     is EngineFailure.MissingKey -> context.getString(UiR.string.key_models_error_key)
-                    is EngineFailure.Network -> context.getString(UiR.string.key_models_error_network, EngineId.GEMINI.displayName)
+                    is EngineFailure.Network -> context.getString(UiR.string.key_models_error_network, engine.displayName)
                     is EngineFailure.Unavailable -> context.getString(UiR.string.key_models_error).let { if (f.reason.isEmpty()) it else context.getString(UiR.string.error_with_reason, it, f.reason) }
                     else -> context.getString(UiR.string.key_models_error)
                 })

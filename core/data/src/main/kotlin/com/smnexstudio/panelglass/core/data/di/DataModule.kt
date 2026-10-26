@@ -46,13 +46,20 @@ object DataModule {
         explicitNulls = false
     }
 
-    /** Single shared client for block list fetching and web requests. */
+    /**
+     * Single shared client for block list fetching and web requests.
+     *
+     * The network interceptor refuses cleartext HTTP to anything but a host on the user's own network, on every hop
+     * (redirects included): the platform permits cleartext so that Custom AI can reach a model server at home, and
+     * this is what keeps the rest of the app https-only.
+     */
     @Provides @Singleton
     fun okHttp(): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
+        .addNetworkInterceptor(LocalOnlyCleartext())
         .build()
 
     @Provides @Singleton

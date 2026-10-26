@@ -6,6 +6,8 @@ import com.smnexstudio.panelglass.core.engine.TranslationEngine
 import com.smnexstudio.panelglass.core.engine.http.HttpEngineSupport
 import com.smnexstudio.panelglass.core.model.EngineException
 import com.smnexstudio.panelglass.core.model.EngineFailure
+import com.smnexstudio.panelglass.core.model.EngineId
+import com.smnexstudio.panelglass.core.model.KeyRequirement
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.TranslateRequest
 import com.smnexstudio.panelglass.core.model.TranslatedItem
@@ -40,7 +42,9 @@ abstract class LlmEngine(
 
     override suspend fun translate(req: TranslateRequest): List<TranslatedItem> {
         if (req.items.isEmpty()) return emptyList()
-        val key = keys.get(id) ?: throw EngineException(EngineFailure.MissingKey(id))
+        // An engine that takes a key but does not insist on one (a server on the user's own network) may have none:
+        // the request then goes out without an Authorization header.
+        val key = keys.get(id) ?: if (keyRequirement == KeyRequirement.OPTIONAL_KEY) "" else throw EngineException(EngineFailure.MissingKey(id))
         val system = LlmContract.systemPrompt(req)
         val montage = if (acceptsImages) req.sfxMontage else null
         val crops = if (acceptsImages) req.readImages.entries.sortedBy { it.key }.map { "Item ${it.key}" to it.value } else emptyList()

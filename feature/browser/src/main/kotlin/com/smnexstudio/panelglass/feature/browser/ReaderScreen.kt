@@ -158,7 +158,9 @@ fun ReaderScreen(
             settings.builtInZoomControls = true
             settings.displayZoomControls = false
             settings.mediaPlaybackRequiresUserGesture = true
-            // https only: an https page's http subresources are never loaded (the app sends no cleartext at all).
+            // https only: an https page's http subresources are never loaded. The platform now allows cleartext so
+            // that Custom AI can reach a model server at home; the browser refuses plain http itself (the client
+            // and the interceptor), so nothing here is sent in the clear.
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             // Multiple windows on, so window.open / target=_blank reach onCreateWindow (NewWindows) and get a
             // decision; with them off a single-window WebView loads them over the reader itself.

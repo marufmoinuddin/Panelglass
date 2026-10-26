@@ -42,7 +42,7 @@ class CustomOpenAiEngineTest {
     private suspend fun engine(base: String = server.url("/v1").toString()): CustomOpenAiEngine {
         settings.setCustomBaseUrl(base)
         settings.setModel(EngineId.CUSTOM, "my-model")
-        return CustomOpenAiEngine(testSupport(), keys, settings).apply { allowHttpForTests = true }
+        return CustomOpenAiEngine(testSupport(), keys, settings)
     }
 
     private val ok = """{"choices":[{"message":{"content":"[{\"i\":0,\"text\":\"Hello\"},{\"i\":1,\"text\":\"Thanks\"}]"}}]}"""
@@ -102,6 +102,7 @@ class CustomOpenAiEngineTest {
         engine.translate(req)
 
         assertEquals("/api/openai/v2/chat/completions", server.takeRequest().path)
+        assertEquals(1, server.requestCount)
     }
 
     @Test
@@ -109,7 +110,7 @@ class CustomOpenAiEngineTest {
         keys.set(EngineId.CUSTOM, "sk-custom")
         settings.setCustomBaseUrl(server.url("/v1").toString())
         settings.setModel(EngineId.CUSTOM, "")
-        val engine = CustomOpenAiEngine(testSupport(), keys, settings).apply { allowHttpForTests = true }
+        val engine = CustomOpenAiEngine(testSupport(), keys, settings)
 
         val e = assertThrows(EngineException::class.java) { runBlocking { engine.translate(req) } }
         assertTrue(e.failure is EngineFailure.Unavailable)
@@ -117,12 +118,16 @@ class CustomOpenAiEngineTest {
     }
 
     @Test
-    fun withoutAKeyTheEngineIsMissingKeyAndHitsNoNetwork() = runBlocking {
+    fun withoutAKeyTheEngineStillCallsTheServer() = runBlocking {
         val engine = engine()
+        server.enqueue(MockResponse().setBody(ok))
 
-        val e = assertThrows(EngineException::class.java) { runBlocking { engine.translate(req) } }
-        assertTrue(e.failure is EngineFailure.MissingKey)
-        assertEquals(0, server.requestCount)
+        val out = engine.translate(req)
+
+        assertEquals(listOf("Hello", "Thanks"), out.sortedBy { it.i }.map { it.text })
+        val sent = server.takeRequest()
+        // No Authorization header when there's no key.
+        assertFalse("Authorization" in sent.headers.toString())
     }
 
     @Test
@@ -130,7 +135,7 @@ class CustomOpenAiEngineTest {
         keys.set(EngineId.CUSTOM, "sk-custom")
         settings.setModel(EngineId.CUSTOM, "my-model")
         settings.setCustomBaseUrl("")
-        val engine = CustomOpenAiEngine(testSupport(), keys, settings).apply { allowHttpForTests = true }
+        val engine = CustomOpenAiEngine(testSupport(), keys, settings)
 
         val e = assertThrows(EngineException::class.java) { runBlocking { engine.translate(req) } }
         assertTrue(e.failure is EngineFailure.Unavailable)
@@ -138,16 +143,31 @@ class CustomOpenAiEngineTest {
     }
 
     @Test
-    fun aPlainHttpAddressIsRefusedInProduction() = runBlocking {
+    fun aPlainHttpAddressToAPublicHostIsRefused() = runBlocking {
         keys.set(EngineId.CUSTOM, "sk-custom")
-        settings.setCustomBaseUrl("http://192.168.1.5:1234/v1")
+        // Public IP on http — should be refused.
+        settings.setCustomBaseUrl("http://182.168.1.5:1234/v1")
         settings.setModel(EngineId.CUSTOM, "my-model")
-        // The test switch is off: production refuses a cleartext address.
         val engine = CustomOpenAiEngine(testSupport(), keys, settings)
 
         val e = assertThrows(EngineException::class.java) { runBlocking { engine.translate(req) } }
         assertTrue(e.failure is EngineFailure.Unavailable)
         assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun aPlainHttpAddressOnTheLocalNetworkIsAllowed() = runBlocking {
+        keys.set(EngineId.CUSTOM, "sk-custom")
+        // The MockWebServer runs on localhost; use 127.0.0.1 (local) with http.
+        settings.setCustomBaseUrl("http://127.0.0.1:${server.port}/v1")
+        settings.setModel(EngineId.CUSTOM, "my-model")
+        val engine = CustomOpenAiEngine(testSupport(), keys, settings)
+        server.enqueue(MockResponse().setBody(ok))
+
+        val out = engine.translate(req)
+
+        assertEquals(listOf("Hello", "Thanks"), out.sortedBy { it.i }.map { it.text })
+        assertEquals(1, server.requestCount)
     }
 
     @Test
@@ -195,7 +215,8 @@ class CustomOpenAiEngineTest {
     fun theEngineIsTextOnlyAndDoesNotReadCrops() = runBlocking {
         assertFalse(EngineId.CUSTOM.readsCrops)
         assertFalse(engine().acceptsImages)
-        assertTrue(EngineId.CUSTOM.needsKey)
+        assertFalse(EngineId.CUSTOM.needsKey) // optional now
+        assertTrue(EngineId.CUSTOM.takesKey)  // but takes one
         assertTrue(EngineId.CUSTOM.hasModel)
     }
 }

@@ -61,9 +61,9 @@ class MangaWebViewClient(
         if (crossSite && adBlockEnabled && blockList.blocks(url)) { countBlocked(); return true }
         // Script-driven cross-site navigation without a tap is a popup or redirect ad.
         if (crossSite && !request.hasGesture() && !request.isRedirect) { countBlocked(); return true }
-        // https only: an http link is followed as its https upgrade (cleartext is off app-wide, so it would only fail).
-        // A server redirect down to http is left to fail: upgrading it would loop against that redirect.
-        if (scheme == "http" && !request.isRedirect) { WebUrl.https(url.toString())?.let { view.loadUrl(it) }; return true }
+        // https only: an http link is followed as its https upgrade (the browser never loads plain http). A server
+        // redirect down to http is cancelled rather than followed: upgrading it would loop against that redirect.
+        if (scheme == "http") { if (!request.isRedirect) WebUrl.https(url.toString())?.let { view.loadUrl(it) }; return true }
         return false
     }
 
@@ -92,6 +92,12 @@ class MangaWebViewClient(
 
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
         val url = request.url
+        // The browser is https only: the platform now allows cleartext so that Custom AI can reach a model server
+        // at home, so the client itself refuses every plain http request. It is not an ad block, so it is not
+        // counted as one.
+        if (url.scheme.equals("http", ignoreCase = true)) {
+            return WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+        }
         if (adBlockEnabled && blockList.blocks(url)) {
             listener.onBlockedCountChanged(blocked.incrementAndGet())
             return empty(request)

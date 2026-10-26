@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!-- Cleartext is permitted at the platform level ONLY so Custom AI can reach a model server on the user's
+         own network (http://192.168.x.x:port/v1). Code restricts it: CustomEndpoint (http only to local hosts),
+         LocalOnlyCleartext on the shared OkHttpClient, and the browser refuses http itself. -->
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

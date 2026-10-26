@@ -67,9 +67,23 @@ class EngineRegistry @Inject constructor(
         if (id.hasModel && settings.current().modelFor(id).isBlank()) {
             return EngineResolution.Failed(EngineFailure.Unavailable(id, "No model configured"))
         }
-        // The user's own server: without a usable HTTPS address there is nothing to call.
-        if (id == EngineId.CUSTOM && CustomEndpoint.normalize(settings.current().customBaseUrl) == null) {
-            return EngineResolution.Failed(EngineFailure.Unavailable(id, "No server address configured"))
+        // The user's own server: without a usable address there is nothing to call.
+        if (id == EngineId.CUSTOM) {
+            val p = CustomEndpoint.parse(settings.current().customBaseUrl)
+            if (p is CustomEndpoint.Parsed.Bad) {
+                return EngineResolution.Failed(
+                    EngineFailure.Unavailable(
+                        id,
+                        when (p.problem) {
+                            CustomEndpoint.Problem.HTTP_NOT_LOCAL ->
+                                "http is only allowed for addresses on your own network; use https for other servers"
+                            CustomEndpoint.Problem.CREDENTIALS ->
+                                "Do not put a username or password in the address"
+                            else -> "Server address is not valid"
+                        },
+                    )
+                )
+            }
         }
         return EngineResolution.Ready(engine)
     }
@@ -91,6 +105,18 @@ class EngineRegistry @Inject constructor(
             }
         }
     }
+
+    /**
+     * The model list of the user's own server, for the "Refresh" action: the ids the server itself offers.
+     *
+     * It lives here and not on [EngineResolver] so that the Studio's resolver fake is not forced to grow a method
+     * it has no use for.
+     */
+    suspend fun customEngineProbe(id: EngineId, typedKey: String): List<Pair<String, String>> =
+        when (val engine = engines[id]) {
+            is CustomOpenAiEngine -> engine.probe(settings.current().customBaseUrl, typedKey)
+            else -> throw EngineException(EngineFailure.Unavailable(id, "Not a custom engine"))
+        }
 }
 
 /** The part of the registry other layers depend on; lets tests substitute fakes. */
