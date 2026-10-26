@@ -7,6 +7,16 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Custom AI can use a model server on your own network.** A server at home — `http://192.168.0.15:8910/v1` — is
+  now reachable over plain http, and the API key for it is **optional**: leave the key empty and the request goes
+  out with no `Authorization` header at all. The address is read as you type it and the sheet says at once whether it
+  can be used: that plain http is only for your own network, that a username in the address is refused, or that the
+  address is not one. **Refresh** asks the server for its own model list, and the engine picker then shows the
+  address and the model. Plain http to a host that is *not* on your network is still refused — use https, or a VPN
+  such as Tailscale.
+
 ### Fixed
 
 - **Importing a model file could not work.** The progress row formatted a string with fewer arguments than it

@@ -274,8 +274,12 @@ Panelglass is not on Google Play. Each release is published on GitHub:
      (a *flash* or *flash-lite* model is fastest) and save.
    - **Custom AI**: your own OpenAI-compatible server. Tap its name, paste the API key, name the model and give the
      server's address. The address is the one your provider documents (`https://api.example.com/v1`); a full
-     `…/chat/completions` address works too. It must be HTTPS, and no `/v1` is added for you — the path you type is
-     the path that is called. The request is text only: the text is read on the device and no image is sent.
+     `…/chat/completions` address works too. No `/v1` is added for you — the path you type is the path that is
+     called. The request is text only: the text is read on the device and no image is sent.
+     A server on **your own network** may be reached over plain `http` (`http://192.168.0.15:8910/v1`) and needs
+     **no API key**: the key field is optional, and a blank key means no `Authorization` header at all. Plain `http` to
+     a host that is not on your network is refused — use `https`, or a VPN such as Tailscale. **Refresh** asks the
+     server for its own model list; you can still save the address when the server has none.
    - **Qwen 2.5 1.5B** or **Gemma 4 E2B**: download the model under **Models**. The engine picker then shows it as
      *downloaded*. Qwen runs on the GPU, or on the CPU on phones under 6 GB of RAM (about 3× slower, but far less
      memory); **Settings → Models → Run models on** changes it for every on-device model at once
@@ -322,8 +326,10 @@ signed with a different key from the published releases, so uninstall one before
 - **With Gemini**, crops of the text on your screen are sent to Google to be read and translated. With Google
   Translate, Qwen or Gemma 4, translation happens on the device. **Custom AI** sends the text (read on the device)
   to the server you named, never an image.
-- **https only**: the app sends nothing in clear text. An `http://` address or link is opened as `https://`, and a
-  site that only serves plain http will not load.
+- **https only**: the browser sends nothing in clear text. An `http://` address or link is opened as `https://`, and a
+  site that only serves plain http will not load. The one exception is **Custom AI** pointed at a server on your own
+  network: `http://192.168.0.15:8910/v1` is allowed there, and refused to any host that is not on your network.
+  The API key for that server is optional.
 - **Links from other apps** open in the reader but are never translated automatically, even with
   translate-on-open on: you tap Start yourself.
 - **Logs** contain timings and failure types only: no keys, page URLs or page text.

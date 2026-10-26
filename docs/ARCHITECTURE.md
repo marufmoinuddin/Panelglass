@@ -145,9 +145,19 @@ the picker and refused by the registry.
 
 - **Custom AI's address.** The user names the server's base address and the model in Settings; the key goes to the
   key store, the address to the settings store (it is not a secret). `CustomEndpoint` reduces the address to its
-  base — a pasted `…/chat/completions` is stripped — and requires HTTPS; the engine then calls
-  `<base>/chat/completions`. No version segment is ever appended. The request is text only: the on-device OCR reads
-  the page, so no crop or montage is sent.
+  base — a pasted `…/chat/completions` is stripped — and the engine then calls `<base>/chat/completions`. No version
+  segment is ever appended. The request is text only: the on-device OCR reads the page, so no crop or montage is sent.
+
+- **What "local" means.** `CustomEndpoint.isLocalHost` decides from the address or name as typed, with no DNS
+  lookup: loopback, the private IPv4 ranges, link-local, CGNAT/Tailscale, IPv6 unique-local, the `.local`-style
+  suffixes and single-label names. Plain `http` is allowed to such a host only — a public server over `http` would
+  carry the conversation in the clear across the internet. The key is optional (`KeyRequirement.OPTIONAL_KEY`): a
+  server at home usually has none, and then no `Authorization` header is sent at all.
+
+- **Where cleartext is stopped.** The platform permits cleartext (`network_security_config.xml`) so that a server at
+  home can be reached; the code enforces the rule at three points: `CustomEndpoint` (what the engine may call),
+  `LocalOnlyCleartext` — a network interceptor on the shared `OkHttpClient`, so a redirect to `http` is refused too,
+  before any request data is sent — and the browser's `WebViewClient`, which refuses every plain `http` request.
 
 - **Retries.** Only transient failures are retried, on the same engine and model (`EngineRetry`): rate limits up to
   3 times, overload (HTTP 500/502/503/504/529) up to 2 times, back-off capped at 4 s.
