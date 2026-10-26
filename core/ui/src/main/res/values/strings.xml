@@ -47,13 +47,6 @@
     <string name="section_translation">Translation</string>
     <string name="section_browsing">Browsing</string>
     <string name="block_ads">Block ads and popups</string>
-    <string name="qwen_backend">Qwen runs on</string>
-    <string name="qwen_backend_auto">Automatic · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">CPU on phones with less than %1$d GB of RAM, GPU otherwise</string>
-    <string name="qwen_backend_gpu_note">About 3× faster; needs about 3 GB of free memory</string>
-    <string name="qwen_backend_cpu_note">About 3× slower; needs much less memory</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>
@@ -142,7 +135,6 @@
     <!-- The user's own on-device models. Not translated yet: the 17 locales keep the English text. -->
     <string name="picker_offline_ready" translatable="false">Offline model · %1$s</string>
     <string name="picker_offline_empty" translatable="false">Add or import a model in Settings › Models</string>
-    <string name="models_user_title" translatable="false">Offline models</string>
     <string name="models_browse" translatable="false">Browse models</string>
     <string name="models_import" translatable="false">Import from file</string>
     <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
@@ -156,7 +148,6 @@
     <string name="browse_no_results" translatable="false">No models found</string>
     <string name="browse_gated" translatable="false">This model needs Hugging Face access. Download it in a browser, then use Import from file.</string>
     <string name="browse_ram_warning" translatable="false">This model may not fit in your phone\'s memory.</string>
-    <string name="browse_no_space" translatable="false">Not enough storage</string>
     <string name="browse_only_litertlm" translatable="false">Only a .litertlm model file can be added</string>
     <string name="browse_error" translatable="false">Could not reach Hugging Face</string>
     <string name="add_model_title" translatable="false">Add model</string>

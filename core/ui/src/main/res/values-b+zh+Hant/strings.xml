@@ -35,13 +35,6 @@
     <string name="section_translation">翻譯</string>
     <string name="section_browsing">瀏覽</string>
     <string name="block_ads">封鎖廣告和彈出式視窗</string>
-    <string name="qwen_backend">Qwen 執行於</string>
-    <string name="qwen_backend_auto">自動 · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">記憶體小於 %1$d GB 的手機用 CPU，其餘用 GPU</string>
-    <string name="qwen_backend_gpu_note">約快 3 倍；需要約 3 GB 可用記憶體</string>
-    <string name="qwen_backend_cpu_note">約慢 3 倍；佔用記憶體少得多</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

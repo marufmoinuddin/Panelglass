@@ -35,13 +35,6 @@
     <string name="section_translation">Dịch</string>
     <string name="section_browsing">Duyệt web</string>
     <string name="block_ads">Chặn quảng cáo và cửa sổ bật lên</string>
-    <string name="qwen_backend">Qwen chạy trên</string>
-    <string name="qwen_backend_auto">Tự động · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">CPU trên điện thoại có RAM dưới %1$d GB, còn lại dùng GPU</string>
-    <string name="qwen_backend_gpu_note">Nhanh hơn khoảng 3 lần; cần khoảng 3 GB bộ nhớ trống</string>
-    <string name="qwen_backend_cpu_note">Chậm hơn khoảng 3 lần; dùng ít bộ nhớ hơn nhiều</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

@@ -35,13 +35,6 @@
     <string name="section_translation">अनुवाद</string>
     <string name="section_browsing">ब्राउज़िंग</string>
     <string name="block_ads">विज्ञापन और पॉप-अप ब्लॉक करें</string>
-    <string name="qwen_backend">Qwen यहाँ चलता है</string>
-    <string name="qwen_backend_auto">स्वचालित · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">%1$d GB से कम RAM वाले फ़ोन पर CPU, बाकी पर GPU</string>
-    <string name="qwen_backend_gpu_note">लगभग 3 गुना तेज़; लगभग 3 GB खाली मेमोरी चाहिए</string>
-    <string name="qwen_backend_cpu_note">लगभग 3 गुना धीमा; बहुत कम मेमोरी लेता है</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

@@ -35,13 +35,6 @@
     <string name="section_translation">Terjemahan</string>
     <string name="section_browsing">Penjelajahan</string>
     <string name="block_ads">Blokir iklan dan pop-up</string>
-    <string name="qwen_backend">Qwen berjalan di</string>
-    <string name="qwen_backend_auto">Otomatis · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">CPU pada ponsel dengan RAM kurang dari %1$d GB, selain itu GPU</string>
-    <string name="qwen_backend_gpu_note">Sekitar 3× lebih cepat; butuh sekitar 3 GB memori kosong</string>
-    <string name="qwen_backend_cpu_note">Sekitar 3× lebih lambat; memakai memori jauh lebih sedikit</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

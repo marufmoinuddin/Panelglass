@@ -35,13 +35,6 @@
     <string name="section_translation">Перевод</string>
     <string name="section_browsing">Просмотр</string>
     <string name="block_ads">Блокировать рекламу и всплывающие окна</string>
-    <string name="qwen_backend">Qwen работает на</string>
-    <string name="qwen_backend_auto">Автоматически · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">CPU на телефонах с ОЗУ меньше %1$d ГБ, иначе GPU</string>
-    <string name="qwen_backend_gpu_note">Примерно в 3 раза быстрее; нужно около 3 ГБ свободной памяти</string>
-    <string name="qwen_backend_cpu_note">Примерно в 3 раза медленнее; расходует гораздо меньше памяти</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

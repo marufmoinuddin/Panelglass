@@ -35,13 +35,6 @@
     <string name="section_translation">번역</string>
     <string name="section_browsing">탐색</string>
     <string name="block_ads">광고 및 팝업 차단</string>
-    <string name="qwen_backend">Qwen 실행 위치</string>
-    <string name="qwen_backend_auto">자동 · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">RAM이 %1$d GB 미만인 휴대전화는 CPU, 그 외에는 GPU</string>
-    <string name="qwen_backend_gpu_note">약 3배 빠름. 여유 메모리 약 3 GB 필요</string>
-    <string name="qwen_backend_cpu_note">약 3배 느림. 메모리를 훨씬 적게 사용</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

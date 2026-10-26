@@ -35,13 +35,6 @@
     <string name="section_translation">Traduction</string>
     <string name="section_browsing">Navigation</string>
     <string name="block_ads">Bloquer les pubs et les fenêtres pop-up</string>
-    <string name="qwen_backend">Qwen s’exécute sur</string>
-    <string name="qwen_backend_auto">Automatique · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">CPU sur les téléphones avec moins de %1$d Go de RAM, GPU sinon</string>
-    <string name="qwen_backend_gpu_note">Environ 3× plus rapide ; demande environ 3 Go de mémoire libre</string>
-    <string name="qwen_backend_cpu_note">Environ 3× plus lent ; utilise beaucoup moins de mémoire</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

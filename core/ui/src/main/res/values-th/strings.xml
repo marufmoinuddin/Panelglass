@@ -35,13 +35,6 @@
     <string name="section_translation">การแปล</string>
     <string name="section_browsing">การท่องเว็บ</string>
     <string name="block_ads">บล็อกโฆษณาและป๊อปอัป</string>
-    <string name="qwen_backend">Qwen ทำงานบน</string>
-    <string name="qwen_backend_auto">อัตโนมัติ · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">ใช้ CPU บนโทรศัพท์ที่มี RAM น้อยกว่า %1$d GB นอกนั้นใช้ GPU</string>
-    <string name="qwen_backend_gpu_note">เร็วกว่าประมาณ 3 เท่า ต้องมีหน่วยความจำว่างราว 3 GB</string>
-    <string name="qwen_backend_cpu_note">ช้ากว่าประมาณ 3 เท่า ใช้หน่วยความจำน้อยกว่ามาก</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

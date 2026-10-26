@@ -35,13 +35,6 @@
     <string name="section_translation">الترجمة</string>
     <string name="section_browsing">التصفّح</string>
     <string name="block_ads">حظر الإعلانات والنوافذ المنبثقة</string>
-    <string name="qwen_backend">يعمل Qwen على</string>
-    <string name="qwen_backend_auto">تلقائي · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">المعالج (CPU) في الهواتف ذات ذاكرة أقل من %1$d غيغابايت، ووحدة الرسومات (GPU) في غيرها</string>
-    <string name="qwen_backend_gpu_note">أسرع بنحو 3 مرات؛ يحتاج إلى نحو 3 غيغابايت من الذاكرة الحرة</string>
-    <string name="qwen_backend_cpu_note">أبطأ بنحو 3 مرات؛ يحتاج إلى ذاكرة أقل بكثير</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

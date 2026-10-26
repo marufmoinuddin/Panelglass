@@ -35,13 +35,6 @@
     <string name="section_translation">翻译</string>
     <string name="section_browsing">浏览</string>
     <string name="block_ads">拦截广告和弹窗</string>
-    <string name="qwen_backend">Qwen 运行于</string>
-    <string name="qwen_backend_auto">自动 · %1$s</string>
-    <string name="qwen_backend_gpu">GPU</string>
-    <string name="qwen_backend_cpu">CPU</string>
-    <string name="qwen_backend_auto_note">内存小于 %1$d GB 的手机用 CPU，其余用 GPU</string>
-    <string name="qwen_backend_gpu_note">约快 3 倍；需要约 3 GB 可用内存</string>
-    <string name="qwen_backend_cpu_note">约慢 3 倍；占用内存少得多</string>
     <string name="backend_title" translatable="false">Run models on</string>
     <string name="backend_auto" translatable="false">Automatic · %1$s</string>
     <string name="backend_gpu" translatable="false">GPU</string>

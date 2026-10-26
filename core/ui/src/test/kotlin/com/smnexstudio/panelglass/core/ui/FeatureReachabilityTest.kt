@@ -12,110 +12,101 @@ import java.io.File
  * and even lands in the APK, and is still unreachable: no button calls it. That is how the whole-page scan was
  * lost once: the engine and the view model were merged, the screen wiring was not, and nothing complained.
  *
- * This test is the guard. It reads the source and asks two questions of every feature:
+ * This test is the guard. It reads the source and asks two questions:
  *
  *  1. **Is it wired?** The feature's entry point (a public function the view model exposes) has a caller in the UI
- *     layer — a screen, a view model of another feature, or a shared UI component.
+ *     layer — a screen, or a shared UI component.
  *  2. **Is it shown?** The strings the feature puts on screen are referenced by code, not only declared.
  *
- * A feature is declared in [FEATURES]. When one is added, its entry point and its strings go here too, and the
- * test fails until the wiring is in place.
+ * The features are **discovered**, not listed: every public function of every view model is an entry point. That is
+ * what makes the guard cover the next feature as well as this one — a new feature cannot be added without being
+ * checked.
+ *
+ * Some public functions are dead on purpose: a setting that was replaced by a successor but whose stored value is
+ * still read for migration, and helpers the view model calls on itself. Those are listed in [DELIBERATELY_UNCALLED]
+ * with the reason, so each one is a decision rather than an oversight.
  */
 class FeatureReachabilityTest {
     private val repo: File = repoRoot()
 
-    /** The features of the app, and the entry points that start them. */
-    private data class Feature(
-        val name: String,
-        /** The module the feature lives in. */
-        val module: String,
-        /** The view model that exposes it. */
-        val viewModel: String,
-        /** The public functions that start or drive the feature. */
-        val entryPoints: List<String>,
-        /** The strings the feature puts on screen. */
-        val strings: List<String>,
+    /**
+     * Public view-model functions that are not called from the UI layer, and why that is correct.
+     *
+     * Every entry here is a decision: either the setting was replaced by a successor (the old value is still read
+     * so an existing phone keeps its choice) or the function is a helper the view model uses on itself.
+     */
+    private val deliberatelyUncalled = mapOf(
+        "setQwenBackend" to "replaced by setComputeBackend; the stored value is still read so an old phone keeps its choice",
+        "setReaderFont" to "called through the font picker's own callback",
+        "toggleFontFavourite" to "called through the font picker's own callback",
+        "toggleFavourite" to "called through the Studio's own row",
+        "clearFailure" to "an internal reset called by the view model itself",
+        "deleteTerm" to "called through the series sheet's own row",
+        "saveSeriesNotes" to "called through the series sheet's own callback",
+        "clearScreenPatches" to "called by the view model itself when the page changes",
     )
 
-    private val features = listOf(
-        Feature(
-            name = "Custom AI engine",
-            module = "core/engine",
-            viewModel = "core/engine/src/main/kotlin/com/smnexstudio/panelglass/core/engine/llm/CustomOpenAiEngine.kt",
-            entryPoints = emptyList(), // the engine is reached through the registry, not a view model
-            strings = emptyList(),
-        ),
-        Feature(
-            name = "Offline model library",
-            module = "feature/settings",
-            viewModel = "feature/settings/src/main/kotlin/com/smnexstudio/panelglass/feature/settings/SettingsViewModel.kt",
-            entryPoints = listOf("importFile", "importInfo", "addFromHub", "deleteUserModel", "useUserModel"),
-            strings = listOf("models_import", "models_browse"),
-        ),
-        Feature(
-            name = "Compute backend setting",
-            module = "feature/settings",
-            viewModel = "feature/settings/src/main/kotlin/com/smnexstudio/panelglass/feature/settings/SettingsViewModel.kt",
-            entryPoints = listOf("setComputeBackend"),
-            strings = listOf("backend_auto", "backend_gpu", "backend_cpu"),
-        ),
-        Feature(
-            name = "Whole-page scan",
-            module = "feature/browser",
-            viewModel = "feature/browser/src/main/kotlin/com/smnexstudio/panelglass/feature/browser/ReaderViewModel.kt",
-            entryPoints = listOf("startFullPage", "cancelScan", "onUserTouch"),
-            strings = listOf("reader_translate_whole_page", "reader_scan_progress", "reader_scan_cancel"),
-        ),
-        Feature(
-            name = "Translation prompt",
-            module = "feature/settings",
-            viewModel = "feature/settings/src/main/kotlin/com/smnexstudio/panelglass/feature/settings/SettingsViewModel.kt",
-            entryPoints = listOf("setTranslationPrompt"),
-            strings = listOf("settings_prompt", "settings_prompt_empty"),
-        ),
-    )
-
-    /** The source of the UI layer: what a user can actually reach. */
-    private fun uiSources(): Map<String, String> {
-        val out = mutableMapOf<String, String>()
-        for (dir in listOf("feature", "core/ui", "app")) {
+    /** The view models: every public function of one is a feature entry point. */
+    private fun viewModels(): List<File> {
+        val out = mutableListOf<File>()
+        for (dir in listOf("feature")) {
             val base = File(repo, dir)
             if (!base.isDirectory) continue
             base.walkTopDown()
-                .filter { it.isFile && it.name.endsWith(".kt") }
+                .filter { it.isFile && it.name.endsWith("ViewModel.kt") && !it.path.contains("/build/") }
+                .forEach { out.add(it) }
+        }
+        return out.sortedBy { it.path }
+    }
+
+    /** The UI layer: what a user can actually reach. The view models themselves are not the UI. */
+    private fun uiLayer(): Map<String, String> {
+        val out = mutableMapOf<String, String>()
+        for (dir in listOf("feature", "core/ui/src/main", "app/src/main")) {
+            val base = File(repo, dir)
+            if (!base.isDirectory) continue
+            base.walkTopDown()
+                .filter { it.isFile && it.name.endsWith(".kt") && !it.path.contains("/build/") }
                 .forEach { out[it.path] = it.readText() }
         }
-        return out
+        // The view models are not the UI: a view model calling itself is not a user reaching a feature.
+        return out.filterKeys { !it.endsWith("ViewModel.kt") }
     }
 
     @Test
-    fun everyFeatureEntryPointHasAUserReachableCaller() {
-        val ui = uiSources()
+    fun everyViewModelFunctionIsReachableOrDeliberatelyNot() {
+        val ui = uiLayer()
         val dead = mutableListOf<String>()
 
-        for (f in features) {
-            val vmFile = File(repo, f.viewModel)
-            if (!vmFile.exists()) {
-                dead += "${f.name}: its view model is gone (${f.viewModel})"
-                continue
-            }
+        for (vmFile in viewModels()) {
             val vm = vmFile.readText()
-            for (entry in f.entryPoints) {
-                if (!Regex("fun\\s+" + Regex.escape(entry) + "\\s*\\(").containsMatchIn(vm)) {
-                    dead += "${f.name}: $entry is no longer a function of the view model"
-                    continue
-                }
-                // The caller must live in the UI layer and be a different file: a view model calling itself is not a
-                // user reaching the feature. The call may end in a trailing lambda (`vm.startFullPage { ... }`).
-                val callers = ui.filter { (path, src) ->
-                    path != f.viewModel && Regex("\\." + Regex.escape(entry) + "\\s*[({]").containsMatchIn(src)
-                }
-                if (callers.isEmpty()) {
-                    dead += "${f.name}: $entry has no caller in the UI layer — the feature cannot be reached"
+            val feature = vmFile.name.removeSuffix(".kt")
+            // A public function of the view model: four spaces of indent, `fun name(`.
+            for (m in Regex("^ {4}fun\\s+(\\w+)\\s*\\(", RegexOption.MULTILINE).findAll(vm)) {
+                val fn = m.groupValues[1]
+                // A function that only returns a value is a getter, not an action.
+                val isAction = Regex("^ {4}fun\\s+" + Regex.escape(fn) + "\\s*\\([^)]*\\)\\s*=\\s*viewModelScope\\.launch").containsMatchIn(vm)
+                    || Regex("^ {4}fun\\s+" + Regex.escape(fn) + "\\s*\\([^)]*\\)\\s*\\{").containsMatchIn(vm)
+                if (!isAction) continue
+                // The call may end in a trailing lambda (`vm.startFullPage { ... }`).
+                val called = ui.values.any { Regex("\\." + Regex.escape(fn) + "\\s*[({]").containsMatchIn(it) }
+                if (called) continue
+                val reason = deliberatelyUncalled[fn]
+                if (reason == null) {
+                    dead += "$feature.$fn has no caller in the UI layer — it may be a feature nobody can reach"
                 }
             }
         }
         assertEquals(emptyList<String>(), dead, "a feature is not reachable from the app")
+    }
+
+    @Test
+    fun everyDeliberatelyUncalledFunctionStillExists() {
+        // A stale allow-list entry hides a real dead function: the function was renamed or removed and the reason
+        // no longer applies.
+        val source = viewModels().joinToString("\n") { it.readText() }
+        val stale = deliberatelyUncalled.keys.filterNot { source.contains("fun $it(") }
+        assertEquals(emptyList<String>(), stale, "an allow-listed function no longer exists: remove it from the list")
     }
 
     @Test
@@ -130,16 +121,24 @@ class FeatureReachabilityTest {
         }
         val kotlin = all.values.joinToString("\n")
 
-        val unused = mutableListOf<String>()
-        for (f in features) {
-            for (s in f.strings) {
-                // The string is used by name in the code (R.string.x or UiR.string.x).
-                if (!Regex("\\b(?:R|UiR)\\.string\\.$s\\b").containsMatchIn(kotlin)) {
-                    unused += "${f.name}: the string $s is declared but never shown"
-                }
-            }
-        }
-        assertEquals(emptyList<String>(), unused, "a feature's string is declared but never used")
+        // Every string the app declares must be shown by code. A string that is only declared is a feature whose
+        // screen is missing.
+        //
+        // A few strings are dead upstream already (they were declared and never used before this branch existed).
+        // They are listed rather than removed, because they are not this branch's to clean up.
+        val deadUpstream = setOf(
+            "studio_add_font", "studio_label_genres", "studio_library", "studio_no_text", "studio_page_title",
+        )
+
+        val declared = Regex("""<string\s+name="([a-z0-9_]+)"""").findAll(
+            File(repo, "core/ui/src/main/res/values/strings.xml").readText()
+        ).map { it.groupValues[1] }.toSet()
+
+        val unused = declared.filterNot { s ->
+            s in deadUpstream || Regex("\\b(?:R|UiR)\\.(?:string|plurals)\\.$s\\b").containsMatchIn(kotlin)
+        }.sorted()
+
+        assertEquals(emptyList<String>(), unused, "a string is declared but never shown — a feature's screen is missing")
     }
 
     @Test
