@@ -13,6 +13,7 @@ Counts as of 2026-10-26: **563 unit tests** in 92 classes, **2 instrumented test
 Counts as of 2026-10-26: **571 unit tests** in 92 classes, **2 instrumented tests**, all passing.
 Counts as of 2026-10-26: **593 unit tests** in 94 classes, **2 instrumented tests**, all passing.
 Counts as of 2026-10-26: **657 unit tests** in 103 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-26: **736 unit tests** in 109 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -57,10 +58,11 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 
 ## Unit tests by module
 
-### core:model (75)
+### core:model (83)
 
 | Class | Tests | Covers |
 |---|---|---|
+| `RetentionLimitsTest` | 8 | The limits of what the reader keeps: a supported value is kept, an unsupported one falls back to the default, and the automatic screen count and memory cap follow the phone's memory |
 | `DialogueContextTest` | 5 | The dialogue-context level: off keeps today's two lines for any engine, standard sends six to a cloud engine and four to an on-device one, deep sends twelve and four, and a config that sets nothing behaves as off |
 | `CastSheetTest` | 5 | The character sheet: trimmed, control characters removed but newlines kept, three blank lines made one, cut at the cap, and shorter for a prompt than for the store |
 | `ContextPairSerializationTest` | 2 | A context pair with and without a speaker survives being written down and read back |
@@ -77,10 +79,12 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `WebUrlTest` | 6 | https only: https kept, http upgraded, a bare host gets `https://`, whitespace trimmed; `javascript:`/`file:`/`content:`/`intent:`/`data:` and non-URLs are null |
 | `CustomEndpointTest` | 18 | The "Custom AI" server address: a base is kept as written; whitespace trimmed; a pasted `…/chat/completions` (with or without a trailing slash) is reduced to its base; any version path is preserved and `/v1` is never added; blank, scheme-less, host-less, spaced, query, fragment, other-scheme and credential-bearing addresses are null; plain http is refused unless the test switch allows it |
 
-### core:data (53)
+### core:data (80)
 
 | Class | Tests | Covers |
 |---|---|---|
+| `RegionStoreTest` | 18 | The store of finished translations: a record survives the round trip, an overlapping record with the same fingerprint is replaced, different fingerprints coexist, different images and scopes keep their own, at most 300 per image, the budget removes the oldest file first, an expired record is ignored and deleted, a corrupt, truncated or absurd file is dropped rather than thrown, clearing empties the store, clearing one scope leaves the others, two coroutines writing at once leave a readable file, and no file name holds any part of the image key or the scope |
+| `RetentionSettingsTest` | 9 | The retention settings: the defaults, each value saved and read back, an out-of-range stored value is clamped, an unknown mode falls back to the default, and the other settings are not disturbed |
 | `DialogueContextSettingTest` | 4 | The dialogue-context level is saved, read back, survives a new repository over the same store, falls back to the default when the stored name is unknown, and reaches the resolved config |
 | `CastSheetSettingTest` | 7 | The character sheets: saved and read back, the host is not case sensitive, a blank sheet removes the host, a sheet is cleaned, a damaged file gives none, two websites keep their own sheet, and the flow follows the sheet |
 | `PatchCacheKeyTest` | 3 | The patch cache key: an empty variant leaves it exactly as it was, a variant changes it, and two variants give two keys |
@@ -153,10 +157,13 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `LongestRunTest` | 5 | The unbreakable run the text fitter tests: an English word with its punctuation; hyphens break; ellipses and quotes do not join words; CJK breaks between any two characters |
 | `PanelInkTest` | 3 | Ink on a mask: contrasting ink kept, otherwise black on a light mask and white on a dark one |
 
-### feature:browser (55)
+### feature:browser (99)
 
 | Class | Tests | Covers |
 |---|---|---|
+| `PatchRetentionCharacterizationTest` | 10 | What the reader has always kept in memory: a patch is kept while it is within three viewport heights above or below the viewport, and dropped beyond it. The rule is pinned here so it cannot change by accident |
+| `PatchWindowTest` | 10 | The pruning of the decoded overlays: the distance rule, the byte cap, both together, a patch on screen is never dropped for the bytes, an empty list, one screen, a deterministic order |
+| `PatchRetentionTest` | 22 | The saved translations: what may be kept (a blank key, a `canvas#` page and a `data:` picture may not), a patch without an anchor or without an image size is not saved, a saved patch comes back on the same rect, after a layout shift, at another zoom and after a rotation; a record of a different shape or made with other settings is skipped; a record outside the margin is not restored, one inside it is; a duplicate is skipped; two bubbles of the same size are both restored; a record that cannot be decoded is skipped; the fingerprint holds the settings and nothing else; **a restored bubble is never detected again, so the engine is never called for it** |
 | `ChapterMemoryTest` | 10 | The reader's memory: only the lines above are given, the nearest ones, in reading order; the same bubble replaces the old one, a different one is kept, a far-away line with the same text is another bubble; at most 600 lines are kept, clearing forgets everything, the speaker is carried, and two threads may use it at once |
 | `BlockListTest` | 11 | Hosts and AdBlock formats parsed; exact hosts and their subdomains blocked, parents and unrelated hosts not; `@@` exceptions win; wildcard and context-scoped rules skipped; localhost ignored; cached form round-trips |
 | `PatchAnchorTest` | 8 | A patch is anchored to the image under its centre; it follows a reader moving its page in its own layer and scroll anchoring; no key, no anchor; an image off screen leaves the patch in place; the anchor is the same place on the art at any zoom; a patch's CSS rect scales with the zoom; one bubble captured at two zooms is a duplicate |
