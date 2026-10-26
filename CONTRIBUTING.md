@@ -99,6 +99,9 @@ adb shell am start -n com.smnexstudio.panelglass.debug/com.smnexstudio.panelglas
 - [ ] `./gradlew assembleDebug testDebugUnitTest :core:model:test` passes.
 - [ ] New test classes are listed in [docs/TESTING.md](docs/TESTING.md).
 - [ ] New behaviour has unit tests. Provider calls are tested against MockWebServer, never a live API.
+- [ ] **A new feature is reachable from the app**: the screen calls it, and its entry point and strings are listed in
+  `FeatureReachabilityTest` (`core/ui`). A feature that ships only its engine compiles, passes every test and lands
+  in the APK, and is still unreachable — nothing calls it. The test is the guard.
 - [ ] UI changes were checked in all four themes (Default, Panel Pop, Soft Bloom, Paper & Ink).
 - [ ] Rendering or detection changes bump `TranslationPipeline.PIPELINE_VERSION` (it keys the patch cache).
 - [ ] Schema changes bump `PanelglassDb.version` **and** add a `Migration` with a test (see `Migration4To5Test`).

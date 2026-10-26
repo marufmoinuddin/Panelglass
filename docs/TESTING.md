@@ -8,7 +8,7 @@ Counts as of 2026-10-24: **425 unit tests** in 65 classes, **2 instrumented test
 
 Counts as of 2026-10-25: **440 unit tests** in 67 classes, **2 instrumented tests**, all passing.
 Counts as of 2026-10-25: **450 unit tests** in 69 classes, **2 instrumented tests**, all passing.
-Counts as of 2026-10-26: **561 unit tests** in 90 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-26: **564 unit tests** in 91 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -195,6 +195,7 @@ Run with a device or emulator attached.
 |---|---|---|
 | `SecureKeyStoreInstrumentedTest` | `./gradlew :core:data:connectedDebugAndroidTest` | An API key round-trips across store instances and is encrypted at rest with the real AndroidKeyStore |
 | `PipelineInstrumentedTest` | `./gradlew :core:pipeline:connectedDebugAndroidTest` | A rendered page (white bubble on hatched art, free text on grey) goes through the whole pipeline to fitted patches; `ENCLOSED` / `FREE` hold; the second run comes from the patch cache. ML Kit Latin, no network |
+| `FeatureReachabilityTest` | 3 | Every feature is reachable from the app: each feature's entry point (the public function a user reaches it through) has a caller in the UI layer; each feature's string is referenced by code, not only declared; and the reader's menu really has the "Translate whole page" item — the guard for a feature that ships its engine but loses its wiring, which a build cannot catch |
 | `StringFormatArgsTest` | 4 | The string resources (core/ui, read straight from `src/main/res`): every translation uses the same arguments as the default; no string mixes positional and non-positional arguments; every index a string declares is used; and every call site passes the arguments its string needs — the check that catches the crash where a progress row formatted a four-argument string with two |
 | `PageScanPlanTest` | 12 | The plan of a whole-page scan: a step covers 70% of the viewport; the stops of a three-screen page; a page that fits is one stop; a page of one and a half screens; the last stop is always the bottom and the stops ascend; a very long page is capped; under the memory budget nothing is dropped; over it the farthest from the viewport goes first; it stops as soon as it fits; a budget of zero keeps nothing; equal distances are dropped in order; the page key drops the fragment |
 
