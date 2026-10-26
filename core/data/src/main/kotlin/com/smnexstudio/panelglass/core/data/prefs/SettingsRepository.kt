@@ -17,11 +17,8 @@ import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.QwenBackend
 import com.smnexstudio.panelglass.core.model.Settings
 import com.smnexstudio.panelglass.core.model.SfxMode
-<<<<<<< HEAD
 import com.smnexstudio.panelglass.core.model.TranslationNotes
-=======
 import com.smnexstudio.panelglass.core.model.UserModel
->>>>>>> 24f1d15 (Add an offline-model library: browse, download, import and switch)
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -93,15 +90,12 @@ class SettingsRepository @Inject constructor(
             blockListUpdatedAt = p[K.blockListUpdatedAt] ?: d.blockListUpdatedAt,
             appTheme = p[K.theme]?.let { AppTheme.fromId(it) } ?: d.appTheme,
             qwenBackend = p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) } ?: d.qwenBackend,
-<<<<<<< HEAD
             translationNotes = p[K.translationNotes] ?: d.translationNotes,
             autoUpdateCheck = p[K.autoUpdateCheck] ?: d.autoUpdateCheck,
-=======
             computeBackend = p[K.computeBackend]?.let { enumOrNull<ComputeBackend>(it) }
                 // A phone that only ever chose Qwen's backend keeps that choice.
                 ?: p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) }?.let { legacyBackend(it) }
                 ?: d.computeBackend,
->>>>>>> bf9da39 (Add compute backend setting (Automatic, CPU, GPU) for all on-device models)
             customBaseUrl = p[K.customBaseUrl] ?: d.customBaseUrl,
             activeUserModelId = p[K.activeUserModel] ?: d.activeUserModelId,
         )

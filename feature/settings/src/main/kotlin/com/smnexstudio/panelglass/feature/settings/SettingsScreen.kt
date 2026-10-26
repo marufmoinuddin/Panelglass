@@ -75,14 +75,11 @@ import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.ModelState
 import com.smnexstudio.panelglass.core.model.UserModel
-<<<<<<< HEAD
 import com.smnexstudio.panelglass.core.model.QwenBackend
 import com.smnexstudio.panelglass.core.model.TranslationNotes
 import com.smnexstudio.panelglass.core.model.SfxMode
-=======
 import com.smnexstudio.panelglass.core.model.ComputeBackend
 import com.smnexstudio.panelglass.core.engine.local.BackendNote
->>>>>>> bf9da39 (Add compute backend setting (Automatic, CPU, GPU) for all on-device models)
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight

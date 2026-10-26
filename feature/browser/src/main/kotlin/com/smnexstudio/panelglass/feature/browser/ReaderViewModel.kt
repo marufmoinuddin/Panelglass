@@ -10,6 +10,7 @@ import androidx.webkit.WebViewFeature
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
+import com.smnexstudio.panelglass.core.data.repo.GlossaryRepository
 import com.smnexstudio.panelglass.core.data.repo.HistoryRepository
 import com.smnexstudio.panelglass.core.data.repo.SiteRepository
 import com.smnexstudio.panelglass.core.engine.EngineRegistry
@@ -19,6 +20,7 @@ import com.smnexstudio.panelglass.core.engine.mt.PageTranslator
 import com.smnexstudio.panelglass.core.model.EngineException
 import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.model.EngineId
+import com.smnexstudio.panelglass.core.model.GlossaryEntry
 import com.smnexstudio.panelglass.core.model.ImageSource
 import com.smnexstudio.panelglass.core.model.IntRect
 import com.smnexstudio.panelglass.core.model.Lang
@@ -39,9 +41,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import org.json.JSONObject
@@ -184,10 +188,35 @@ class ReaderViewModel @Inject constructor(
     pageTranslator: PageTranslator,
     private val packs: LanguagePackStore,
     val warmup: ReaderWarmup,
+    private val glossary: GlossaryRepository,
 ) : ViewModel(), MangaWebViewClient.Listener {
 
     private val _ui = MutableStateFlow(ReaderUiState())
     val ui: StateFlow<ReaderUiState> = _ui
+
+    // ---- the series' names, pronouns and notes (⋮ › Glossary & pronouns) ------------------------------------
+
+    private val series = SeriesMemory(
+        glossary, viewModelScope,
+        seriesKey = _ui.map { it.config?.seriesKey.orEmpty() },
+        keyNow = { _ui.value.config?.seriesKey.orEmpty() },
+    )
+    val seriesTerms: StateFlow<List<GlossaryEntry>> get() = series.terms
+    val seriesNotes: StateFlow<String> get() = series.notes
+
+    fun saveTerm(entry: GlossaryEntry) = series.saveTerm(entry)
+    fun deleteTerm(entry: GlossaryEntry) = series.deleteTerm(entry)
+    fun saveSeriesNotes(text: String) = series.saveNotes(text)
+
+    /** The sheet closed: a running screen session translates the viewport again with what was edited. */
+    fun seriesSheetClosed() {
+        val writes = series.takeWrites()
+        if (writes.isEmpty()) return
+        if (_screen.value.active) viewModelScope.launch {
+            writes.joinAll()
+            clearScreenPatches(); translateViewport()
+        }
+    }
 
     private var web: WebView? = null
 

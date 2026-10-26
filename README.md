@@ -281,13 +281,11 @@ Panelglass is not on Google Play. Each release is published on GitHub:
      memory); **Settings → Models → Run models on** changes it for every on-device model at once
      ([details](docs/MEMORY_USAGE.md)).
 3. For Japanese with an offline engine, also download **Japanese manga OCR** (140 MB).
-<<<<<<< HEAD
 4. Choose what happens to **Sound effects** (Keep or Replace) and, for Gemini or an on-device model,
    add a few **Translation notes** ([suggested notes](docs/TRANSLATION_QUALITY.md#translation-notes)).
 5. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
    **Stop** ends translation; **⋮ → Re-translate** reads the current screen again from scratch; **⋮ → Glossary &
    pronouns** sets the series' character names and pronouns.
-=======
 4. **Your own offline model.** Settings › Models › **Browse models** searches the Hugging Face catalogue of
    LiteRT-LM models (or type `owner/name` to list a repository directly); pick a `.litertlm` file, confirm, and wait
    for the download. **Import from file** adds a `.litertlm` file you already have on the phone. Tap **Use** on a
@@ -297,7 +295,6 @@ Panelglass is not on Google Play. Each release is published on GitHub:
    from the file's own KV cache (`ekv…` in its name) and may only be lowered.
 5. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
    **Stop** ends translation; **⋮ → Re-translate** reads the current screen again from scratch.
->>>>>>> 24f1d15 (Add an offline-model library: browse, download, import and switch)
 6. For files you already have, open the **Studio** tab and tap **Import** ([how it works](#studio-translate-your-own-chapters)).
 
 ### Build from source
