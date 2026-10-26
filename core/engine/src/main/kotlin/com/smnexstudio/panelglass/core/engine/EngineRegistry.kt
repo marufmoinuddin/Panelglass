@@ -112,9 +112,9 @@ class EngineRegistry @Inject constructor(
      * It lives here and not on [EngineResolver] so that the Studio's resolver fake is not forced to grow a method
      * it has no use for.
      */
-    suspend fun customEngineProbe(id: EngineId, typedKey: String): List<Pair<String, String>> =
+    suspend fun customEngineProbe(id: EngineId, baseUrl: String, typedKey: String): List<Pair<String, String>> =
         when (val engine = engines[id]) {
-            is CustomOpenAiEngine -> engine.probe(settings.current().customBaseUrl, typedKey)
+            is CustomOpenAiEngine -> engine.probe(baseUrl, typedKey)
             else -> throw EngineException(EngineFailure.Unavailable(id, "Not a custom engine"))
         }
 }

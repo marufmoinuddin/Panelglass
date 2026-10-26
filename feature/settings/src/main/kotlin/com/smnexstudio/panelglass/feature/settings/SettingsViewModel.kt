@@ -407,33 +407,73 @@ class SettingsViewModel @Inject constructor(
      * Fills the model dropdown from the provider's own list, with [typedKey] (a key typed but not saved yet) or the
      * saved key. Only Gemini offers a listing today; for other engines the field stays free text.
      */
-    fun loadModels(engine: EngineId, typedKey: String?) {
+    /**
+     * The provider's own model list. Only Gemini and the user's own server offer one; for the others the field
+     * stays free text.
+     *
+     * [typedBaseUrl] is the address as typed in the sheet (null = the saved one): the list is fetched from the
+     * address the user is looking at, not from the one they saved last time.
+     */
+    fun loadModels(engine: EngineId, typedKey: String?, typedBaseUrl: String? = null) {
         if (engine != EngineId.GEMINI && engine != EngineId.CUSTOM) { _modelChoices.value = ModelChoices(); return }
         modelsJob?.cancel()
         modelsJob = viewModelScope.launch {
             _modelChoices.update { it.copy(loading = true, error = null) }
+            // The label of the address the list is fetched from, for the error message.
+            var label = ""
             _modelChoices.value = try {
                 when (engine) {
                     EngineId.GEMINI -> ModelChoices(models = gemini.listModels(typedKey).map { it.id to it.displayName })
                     EngineId.CUSTOM -> {
-                        val base = typedKey?.takeIf { it.isNotBlank() } ?: repo.current().customBaseUrl
+                        val base = typedBaseUrl?.takeIf { it.isNotBlank() } ?: repo.current().customBaseUrl
                         val parsed = CustomEndpoint.parse(base)
-                        if (parsed is CustomEndpoint.Parsed.Bad) throw EngineException(EngineFailure.Unavailable(engine, parsed.problem.toString()))
+                        if (parsed !is CustomEndpoint.Parsed.Ok) {
+                            throw EngineException(EngineFailure.Unavailable(engine, "Bad address"))
+                        }
+                        label = parsed.label
                         val key = typedKey?.takeIf { it.isNotBlank() } ?: keyStore.get(engine).orEmpty()
-                        val list = registry.customEngineProbe(engine, key)
-                        ModelChoices(models = list)
+                        ModelChoices(models = registry.customEngineProbe(engine, base, key))
                     }
                     else -> ModelChoices()
                 }
             } catch (e: EngineException) {
-                ModelChoices(error = when (val f = e.failure) {
-                    is EngineFailure.MissingKey -> context.getString(UiR.string.key_models_error_key)
-                    is EngineFailure.Network -> context.getString(UiR.string.key_models_error_network, engine.displayName)
-                    is EngineFailure.Unavailable -> context.getString(UiR.string.key_models_error).let { if (f.reason.isEmpty()) it else context.getString(UiR.string.error_with_reason, it, f.reason) }
-                    else -> context.getString(UiR.string.key_models_error)
-                })
+                ModelChoices(error = modelListError(engine, e.failure, label))
             }
         }
+    }
+
+    /**
+     * The message shown when a model list could not be fetched.
+     *
+     * For the user's own server the messages say what to do about it: the address may be wrong, the server may want
+     * a key, or it may simply have no model list at that address (which is not an error - the address can still be
+     * saved).
+     */
+    private fun modelListError(engine: EngineId, failure: EngineFailure, label: String): String = when (failure) {
+        is EngineFailure.MissingKey -> if (engine == EngineId.CUSTOM) {
+            context.getString(UiR.string.custom_err_key)
+        } else {
+            context.getString(UiR.string.key_models_error_key)
+        }
+        is EngineFailure.Network -> if (engine == EngineId.CUSTOM) {
+            context.getString(UiR.string.custom_err_unreachable, label.ifBlank { engine.displayName })
+        } else {
+            context.getString(UiR.string.key_models_error_network, engine.displayName)
+        }
+        is EngineFailure.Unavailable -> when {
+            engine != EngineId.CUSTOM ->
+                context.getString(UiR.string.key_models_error).let { if (failure.reason.isEmpty()) it else context.getString(UiR.string.error_with_reason, it, failure.reason) }
+            // The server answered, but there is no model list at that address: most servers want /v1 at the end.
+            "404" in failure.reason -> context.getString(UiR.string.custom_err_not_found)
+            failure.reason.isEmpty() -> context.getString(UiR.string.custom_err_http, engine.displayName)
+            else -> context.getString(UiR.string.custom_err_http, failure.reason)
+        }
+        is EngineFailure.Malformed -> if (engine == EngineId.CUSTOM) {
+            context.getString(UiR.string.custom_err_format)
+        } else {
+            context.getString(UiR.string.key_models_error)
+        }
+        else -> context.getString(UiR.string.key_models_error)
     }
 
     fun downloadModel(m: LocalModel) = modelStores[m].download()

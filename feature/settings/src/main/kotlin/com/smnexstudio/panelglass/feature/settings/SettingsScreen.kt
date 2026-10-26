@@ -70,8 +70,10 @@ import com.smnexstudio.panelglass.core.data.repo.MangaStorage
 import com.smnexstudio.panelglass.core.engine.mt.GoogleTranslateEngine
 import com.smnexstudio.panelglass.core.engine.mt.LanguagePackStore
 import com.smnexstudio.panelglass.core.engine.mt.PackState
+import com.smnexstudio.panelglass.core.model.CustomEndpoint
 import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.model.EngineId
+import com.smnexstudio.panelglass.core.model.KeyRequirement
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.ModelState
 import com.smnexstudio.panelglass.core.model.UserModel
@@ -450,7 +452,19 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
     val userReady = activeUser != null && vm.stateOf(activeUser).collectAsState().value is ModelState.Ready
     if (enginePicker) EnginePickerSheet(
         selected = s.engineId,
-        keyed = { e -> KeyedEngineState(hasKey = e in keys, model = s.modelFor(e)) },
+        keyed = { e ->
+            if (e.keyRequirement == KeyRequirement.OPTIONAL_KEY) {
+                // The user's own server: configured means a usable address and a model, not a key.
+                val parsed = CustomEndpoint.parse(s.customBaseUrl)
+                KeyedEngineState(
+                    hasKey = parsed is CustomEndpoint.Parsed.Ok && s.modelFor(e).isNotBlank(),
+                    model = s.modelFor(e),
+                    detail = (parsed as? CustomEndpoint.Parsed.Ok)?.label.orEmpty(),
+                )
+            } else {
+                KeyedEngineState(hasKey = e in keys, model = s.modelFor(e))
+            }
+        },
         onSelect = { vm.selectEngine(it) },
         // Check disc on a keyed engine without a key: selectEngine records the pending choice, opens the dialog, and
         // saving the key completes the selection.
@@ -474,7 +488,11 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
             modelChoices = choices.models,
             modelsLoading = choices.loading,
             modelsError = choices.error,
-            onLoadModels = if (engine == EngineId.GEMINI) ({ typed -> vm.loadModels(engine, typed) }) else null,
+            onLoadModels = when (engine) {
+                EngineId.GEMINI -> ({ typed, _ -> vm.loadModels(engine, typed) })
+                EngineId.CUSTOM -> ({ typed, typedBaseUrl -> vm.loadModels(engine, typed, typedBaseUrl) })
+                else -> null
+            },
             currentBaseUrl = s.customBaseUrl,
         )
     }

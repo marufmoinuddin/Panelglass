@@ -41,7 +41,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.smnexstudio.panelglass.core.model.CustomEndpoint
 import com.smnexstudio.panelglass.core.model.EngineId
+import com.smnexstudio.panelglass.core.model.KeyRequirement
 
 /**
  * White card with a 2.5 dp Ink border and 24 dp radius, sitting on an 8 dp-offset Yellow "sticker" shadow.
@@ -80,8 +82,9 @@ fun ApiKeyDialog(
     modelChoices: List<Pair<String, String>> = emptyList(),
     modelsLoading: Boolean = false,
     modelsError: String? = null,
-    /** Asks for the provider's model list, with the key typed so far (null = the saved key). Null: no listing. */
-    onLoadModels: ((typedKey: String?) -> Unit)? = null,
+    /** Asks for the provider's model list, with the key typed so far (null = the saved key) and the address typed so
+     * far (null = the saved address). Null: no listing. */
+    onLoadModels: ((typedKey: String?, typedBaseUrl: String?) -> Unit)? = null,
     /** The server's address, for the "Custom AI" engine; null for every other engine. */
     currentBaseUrl: String = "",
 ) {
@@ -89,9 +92,23 @@ fun ApiKeyDialog(
     var model by remember(engine) { mutableStateOf(currentModel) }
     var baseUrl by remember(engine) { mutableStateOf(currentBaseUrl) }
     var menuOpen by remember(engine) { mutableStateOf(false) }
-    LaunchedEffect(engine) { if (hasKey) onLoadModels?.invoke(null) }
     val wantsBaseUrl = engine == EngineId.CUSTOM
-    val canSave = (key.isNotBlank() || hasKey) && (!engine.hasModel || model.isNotBlank()) && (!wantsBaseUrl || baseUrl.isNotBlank())
+    val optionalKey = engine.keyRequirement == KeyRequirement.OPTIONAL_KEY
+    // The address, read live: the field says at once whether it can be used.
+    val parsed = remember(baseUrl, wantsBaseUrl) {
+        if (wantsBaseUrl) CustomEndpoint.parse(baseUrl) else null
+    }
+    // The model list is offered when there is something to ask with: a key for Gemini, an address for a server.
+    val canList = when {
+        !wantsBaseUrl -> hasKey
+        else -> parsed is CustomEndpoint.Parsed.Ok
+    }
+    LaunchedEffect(engine) { if (canList) onLoadModels?.invoke(null, null) }
+    // A key that is optional is not needed to save: the address and the model are enough.
+    val canSave = when {
+        optionalKey -> (!engine.hasModel || model.isNotBlank()) && (!wantsBaseUrl || parsed is CustomEndpoint.Parsed.Ok)
+        else -> (key.isNotBlank() || hasKey) && (!engine.hasModel || model.isNotBlank()) && (!wantsBaseUrl || baseUrl.isNotBlank())
+    }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = Tokens.Ink, unfocusedBorderColor = Tokens.Border,
         focusedTextColor = Tokens.Ink, unfocusedTextColor = Tokens.Ink, cursorColor = Tokens.Ink,
@@ -105,7 +122,17 @@ fun ApiKeyDialog(
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = key, onValueChange = { key = it },
-            placeholder = { Text(stringResource(if (hasKey) R.string.key_hint_saved else R.string.key_hint)) },
+            placeholder = {
+                Text(
+                    stringResource(
+                        when {
+                            optionalKey -> R.string.key_hint_optional
+                            hasKey -> R.string.key_hint_saved
+                            else -> R.string.key_hint
+                        },
+                    ),
+                )
+            },
             singleLine = true, visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
             shape = RoundedCornerShape(14.dp), colors = fieldColors, modifier = Modifier.fillMaxWidth(),
@@ -157,7 +184,9 @@ fun ApiKeyDialog(
                         fontFamily = Jakarta, fontSize = 11.5.sp, lineHeight = 15.sp,
                         color = if (modelsError != null) Tokens.Error else Tokens.InkFaint, modifier = Modifier.weight(1f),
                     )
-                    TextAction(stringResource(R.string.key_refresh), Tokens.SkyDeep) { onLoadModels(key.trim().ifEmpty { null }) }
+                    TextAction(stringResource(R.string.key_refresh), Tokens.SkyDeep) {
+                        onLoadModels(key.trim().ifEmpty { null }, baseUrl.trim().ifEmpty { null })
+                    }
                 }
             }
         }
@@ -173,10 +202,32 @@ fun ApiKeyDialog(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(4.dp))
-            Text(
-                stringResource(R.string.key_base_url_note),
-                fontFamily = Jakarta, fontSize = 11.5.sp, lineHeight = 15.sp, color = Tokens.InkFaint,
-            )
+            // The address is read as it is typed: what is wrong with it, or the note that plain http stays on the
+            // home network. Nothing is said while the field is still empty.
+            when (val p = parsed) {
+                is CustomEndpoint.Parsed.Ok -> Text(
+                    if (p.https) stringResource(R.string.key_base_url_note)
+                    else stringResource(R.string.key_base_url_note_http),
+                    fontFamily = Jakarta, fontSize = 11.5.sp, lineHeight = 15.sp,
+                    color = if (p.https) Tokens.InkFaint else Tokens.SkyDeep,
+                )
+                is CustomEndpoint.Parsed.Bad -> when (p.problem) {
+                    CustomEndpoint.Problem.HTTP_NOT_LOCAL -> Text(
+                        stringResource(R.string.key_base_url_err_public, p.host),
+                        fontFamily = Jakarta, fontSize = 11.5.sp, lineHeight = 15.sp, color = Tokens.Error,
+                    )
+                    CustomEndpoint.Problem.CREDENTIALS -> Text(
+                        stringResource(R.string.key_base_url_err_credentials),
+                        fontFamily = Jakarta, fontSize = 11.5.sp, lineHeight = 15.sp, color = Tokens.Error,
+                    )
+                    else -> if (p.problem == CustomEndpoint.Problem.EMPTY) Spacer(Modifier.height(0.dp))
+                    else Text(
+                        stringResource(R.string.key_base_url_err_bad),
+                        fontFamily = Jakarta, fontSize = 11.5.sp, lineHeight = 15.sp, color = Tokens.Error,
+                    )
+                }
+                null -> Spacer(Modifier.height(0.dp))
+            }
         }
         Spacer(Modifier.height(10.dp))
         Text(

@@ -161,15 +161,31 @@
     <string name="picker_model_not_set">Model not set</string>
     <!-- %1$s is a model id such as gemini-flash-latest -->
     <string name="picker_key_saved">%1$s · key saved · tap to change</string>
+    <!-- %1$s is the address label (host and port), %2$s the model id -->
+    <string name="picker_custom_ready" translatable="false">%1$s · %2$s · tap to change</string>
+    <string name="picker_custom_set" translatable="false">Set up a server address</string>
 
     <!-- API key dialog -->
     <string name="key_title">%1$s key</string>
     <string name="key_hint">API key</string>
     <string name="key_hint_saved">API key (saved · leave empty to keep)</string>
+    <string name="key_hint_optional" translatable="false">API key (optional)</string>
     <string name="key_model">Model</string>
     <string name="key_base_url">Server address</string>
     <string name="key_base_url_hint">https://api.example.com/v1</string>
-    <string name="key_base_url_note">The address of your server. HTTPS only. A full …/chat/completions address works too.</string>
+    <string name="key_base_url_note">The address of your server. A full …/chat/completions address works too.</string>
+    <!-- %1$s is the host the user typed -->
+    <string name="key_base_url_note_http" translatable="false">Plain http is used only for addresses on your own network. Traffic is not encrypted.</string>
+    <string name="key_base_url_err_public" translatable="false">http is only allowed on your own network (%1$s is not). Use https, or a VPN such as Tailscale.</string>
+    <string name="key_base_url_err_bad" translatable="false">Enter an address like http://192.168.0.15:8888/v1</string>
+    <string name="key_base_url_err_credentials" translatable="false">Do not put a username or password in the address</string>
+    <!-- %1$s is the address label -->
+    <string name="custom_err_unreachable" translatable="false">Could not reach %1$s. Check the address and port, that the server is running, and that your phone is on the same network.</string>
+    <string name="custom_err_key" translatable="false">The server wants an API key, or the key is wrong.</string>
+    <string name="custom_err_not_found" translatable="false">The server answered but has no model list at this address. Most servers need /v1 at the end. You can still save.</string>
+    <string name="custom_err_format" translatable="false">The server answered, but not with a model list. You can still save.</string>
+    <!-- %1$s is the server's own explanation -->
+    <string name="custom_err_http" translatable="false">The server answered: %1$s</string>
     <string name="key_models_loading">Loading models…</string>
     <plurals name="key_models_count">
         <item quantity="one">%d model for this key</item>

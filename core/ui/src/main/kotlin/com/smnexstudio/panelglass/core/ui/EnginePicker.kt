@@ -34,9 +34,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smnexstudio.panelglass.core.model.EngineId
+import com.smnexstudio.panelglass.core.model.KeyRequirement
 
 /** What the picker needs to know about a keyed provider. */
-class KeyedEngineState(val hasKey: Boolean, val model: String)
+class KeyedEngineState(
+    val hasKey: Boolean,
+    val model: String,
+    /** The address of the user's own server (the "Custom AI" engine); empty for every other engine. */
+    val detail: String = "",
+)
 
 /**
  * "Select engine" sheet. Built-in engines first (Qwen, Google Translate), then one row per keyed provider
@@ -65,7 +71,7 @@ fun EnginePickerSheet(
             Text(stringResource(R.string.picker_title), style = MaterialTheme.typography.titleLarge, color = Tokens.Ink, modifier = Modifier.padding(start = 4.dp))
             Text(stringResource(R.string.picker_subtitle), style = MaterialTheme.typography.bodyMedium, color = Tokens.InkSoft, modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 12.dp))
 
-            for (e in EngineId.entries.filter { it.offered && !it.needsKey && it !in hidden }) {
+            for (e in EngineId.entries.filter { it.offered && !it.takesKey && it !in hidden }) {
                 EngineRow(
                     engine = e, selected = e == selected,
                     subtitle = when {
@@ -83,11 +89,18 @@ fun EnginePickerSheet(
             }
 
             SheetSectionLabel(stringResource(R.string.picker_custom_keys))
-            for (e in EngineId.entries.filter { it.offered && it.needsKey }) {
+            for (e in EngineId.entries.filter { it.offered && it.takesKey }) {
                 val k = keyed(e)
                 EngineRow(
                     engine = e, selected = e == selected,
-                    subtitle = if (!k.hasKey) stringResource(R.string.picker_set_key) else stringResource(R.string.picker_key_saved, k.model.ifBlank { stringResource(R.string.picker_model_not_set) }),
+                    subtitle = when {
+                        // The user's own server: configured means an address and a model, not a key.
+                        e.keyRequirement == KeyRequirement.OPTIONAL_KEY && k.hasKey ->
+                            stringResource(R.string.picker_custom_ready, k.detail, k.model.ifBlank { stringResource(R.string.picker_model_not_set) })
+                        e.keyRequirement == KeyRequirement.OPTIONAL_KEY -> stringResource(R.string.picker_custom_set)
+                        !k.hasKey -> stringResource(R.string.picker_set_key)
+                        else -> stringResource(R.string.picker_key_saved, k.model.ifBlank { stringResource(R.string.picker_model_not_set) })
+                    },
                     onBody = { onConfigure(e) },
                     onCheck = { if (k.hasKey) { onSelect(e); onDismiss() } else onNeedsKey(e) },
                 )
