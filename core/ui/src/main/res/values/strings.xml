@@ -145,6 +145,11 @@
     <string name="models_user_title" translatable="false">Offline models</string>
     <string name="models_browse" translatable="false">Browse models</string>
     <string name="models_import" translatable="false">Import from file</string>
+    <string name="model_import_progress" translatable="false">Importing the model · %1$s</string>
+    <string name="import_already_added" translatable="false">That model is already in your library</string>
+    <string name="import_failed" translatable="false">The model could not be imported</string>
+    <string name="import_too_small" translatable="false">That file is too small to be a model</string>
+    <string name="import_no_space" translatable="false">Not enough storage for the model</string>
     <string name="model_use" translatable="false">Use</string>
     <string name="model_in_use" translatable="false">In use</string>
     <string name="browse_search_hint" translatable="false">Search, or type owner/name</string>
@@ -220,6 +225,7 @@
 
     <!-- Downloadable models; %1$s is a technical name such as LiteRT-LM or manga-ocr -->
     <string name="size_mb">%1$d MB</string>
+    <string name="size_unknown" translatable="false">Size unknown</string>
     <string name="model_needs_ram">needs %1$d GB RAM</string>
     <string name="model_manga_ocr">Japanese manga OCR</string>
     <string name="model_manga_ready">used for Japanese bubbles</string>

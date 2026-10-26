@@ -28,4 +28,9 @@ dependencies {
     api(project(":core:model"))
     // The Studio's fonts, for the font picker Settings and the Studio share (fonts/FontBrowser.kt).
     implementation(project(":core:render"))
+
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
+
+tasks.withType<Test> { useJUnitPlatform() }
