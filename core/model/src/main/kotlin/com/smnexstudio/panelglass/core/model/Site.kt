@@ -125,6 +125,23 @@ data class SeriesNotes(
 )
 
 /**
+ * The user's own instructions for every translation (a house style, what to avoid, how to render a term). They are
+ * sent to the AI engines with the notes and the glossary; machine translation has no prompt and ignores them.
+ *
+ * The text is capped: the on-device models share a 4096-token cache between prompt and reply, and a pasted essay
+ * would crowd out the page's own text.
+ */
+object TranslationPrompt {
+    /** Longest prompt, in characters. */
+    const val MAX_CHARS = 1000
+
+    /**
+     * The prompt as it goes into an engine's system prompt: trimmed and capped, empty when the user wrote nothing.
+     */
+    fun clean(text: String): String = text.trim().take(MAX_CHARS)
+}
+
+/**
  * What the AI engines are told beyond the glossary: the characters' pronouns, then the series' notes, then the
  * notes from Settings that apply everywhere. Each part is capped at [MAX_CHARS]: the on-device models share a
  * 4096-token cache between prompt and reply.

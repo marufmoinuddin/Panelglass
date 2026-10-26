@@ -646,6 +646,10 @@
     <string name="settings_notes_empty">Giọng văn, kính ngữ, đại từ: cho Gemini và các mô hình trên thiết bị</string>
     <string name="settings_notes_hint">vd: Dùng văn nói. Giữ kính ngữ tiếng Nhật.</string>
     <string name="settings_notes_note">Áp dụng cho mọi bộ truyện. Với tên và đại từ của một bộ, mở ⋮ › Thuật ngữ &amp; đại từ trong trình đọc.</string>
+    <string name="settings_prompt_note" translatable="false">Applies to every translation. The AI engines follow it; machine translation has no prompt and ignores it.</string>
+    <string name="settings_prompt_hint" translatable="false">e.g. Keep the tone formal. Do not translate honorifics. Keep sound effects in caps.</string>
+    <string name="settings_prompt_empty" translatable="false">Your own instructions for every translation: for Gemini and the on-device models</string>
+    <string name="settings_prompt" translatable="false">Translation prompt</string>
     <string name="action_close">Đóng</string>
     <string name="settings_about">Giới thiệu</string>
     <string name="update_check">Kiểm tra bản cập nhật</string>

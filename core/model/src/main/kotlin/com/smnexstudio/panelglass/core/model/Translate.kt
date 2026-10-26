@@ -21,6 +21,8 @@ data class TranslateConfig(
     val contextMode: ContextMode = ContextMode.BATCHED,
     /** The user's notes for the AI engines: Settings' notes until the pipeline adds the series' ([TranslationNotes]). */
     val notes: String = "",
+    /** The user's own instructions for every translation; sent to the AI engines with the notes. */
+    val prompt: String = "",
 )
 
 /** Where the pipeline gets its pixels: a platform bitmap (the reader's viewport snapshot) the pipeline module unwraps. */
@@ -98,10 +100,15 @@ class TranslateRequest(
      * page text they are followed. Machine translation (ML Kit) has no prompt and ignores them.
      */
     val notes: String = "",
+    /**
+     * The user's own instructions for every translation (a house style, what to avoid). Unlike page text they are
+     * followed. Machine translation (ML Kit) has no prompt and ignores them.
+     */
+    val prompt: String = "",
 ) {
     /** Subset request for retries/fallbacks. The montage is dropped: its cell numbering would no longer match. */
     fun withItems(subset: List<RegionItem>): TranslateRequest {
         val ids = subset.map { it.i }.toSet()
-        return TranslateRequest(subset, src, tgt, glossary, priorContext, null, emptyList(), readImages.filterKeys { it in ids }, notes)
+        return TranslateRequest(subset, src, tgt, glossary, priorContext, null, emptyList(), readImages.filterKeys { it in ids }, notes, prompt)
     }
 }

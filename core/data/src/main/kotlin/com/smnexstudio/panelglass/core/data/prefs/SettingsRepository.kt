@@ -18,6 +18,7 @@ import com.smnexstudio.panelglass.core.model.QwenBackend
 import com.smnexstudio.panelglass.core.model.Settings
 import com.smnexstudio.panelglass.core.model.SfxMode
 import com.smnexstudio.panelglass.core.model.TranslationNotes
+import com.smnexstudio.panelglass.core.model.TranslationPrompt
 import com.smnexstudio.panelglass.core.model.UserModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -61,6 +62,7 @@ class SettingsRepository @Inject constructor(
         val computeBackend = stringPreferencesKey("computeBackend")
         val automaticPacks = booleanPreferencesKey("automaticPacksDone")
         val translationNotes = stringPreferencesKey("translationNotes")
+        val translationPrompt = stringPreferencesKey("translationPrompt")
         val updateCheckedAt = longPreferencesKey("updateCheckedAt")
         val autoUpdateCheck = booleanPreferencesKey("autoUpdateCheck")
         /** The user's own OpenAI-compatible server for the "Custom AI" engine; an address, not a secret. */
@@ -91,6 +93,7 @@ class SettingsRepository @Inject constructor(
             appTheme = p[K.theme]?.let { AppTheme.fromId(it) } ?: d.appTheme,
             qwenBackend = p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) } ?: d.qwenBackend,
             translationNotes = p[K.translationNotes] ?: d.translationNotes,
+            translationPrompt = p[K.translationPrompt] ?: d.translationPrompt,
             autoUpdateCheck = p[K.autoUpdateCheck] ?: d.autoUpdateCheck,
             computeBackend = p[K.computeBackend]?.let { enumOrNull<ComputeBackend>(it) }
                 // A phone that only ever chose Qwen's backend keeps that choice.
@@ -122,6 +125,11 @@ class SettingsRepository @Inject constructor(
     suspend fun setSfxMode(v: SfxMode) { dataStore.edit { it[K.sfx] = v.name } }
     suspend fun setTranslationNotes(v: String) {
         dataStore.edit { it[K.translationNotes] = v.trim().take(TranslationNotes.MAX_CHARS) }
+    }
+
+    /** The user's own instructions for every translation. */
+    suspend fun setTranslationPrompt(v: String) {
+        dataStore.edit { it[K.translationPrompt] = TranslationPrompt.clean(v) }
     }
 
     /** Where every on-device model runs. */

@@ -25,6 +25,9 @@ workflow publishes the version's section as the GitHub Release notes.
   file** adds one already on the phone. Keep several, delete them again, and tap **Use** to pick the one the new
   **Offline model** engine runs. Only the LiteRT-LM format works — the one the bundled runtime loads. A gated model
   has to be downloaded in a browser and imported.
+- **Translation prompt** in Settings: your own instructions for every translation (a house style, what to avoid,
+  how to render a term). The AI engines follow them; machine translation has no prompt and ignores them. The notes
+  are about one series, the prompt is about every translation.
 - **Custom AI**, a translation engine for your own OpenAI-compatible server. Name its address and the model in
   Settings and paste your key: the app sends a plain text Chat Completions request to `<your address>/chat/completions`
   and reads the text on the device, so no image ever leaves the phone. The address must be HTTPS; a pasted

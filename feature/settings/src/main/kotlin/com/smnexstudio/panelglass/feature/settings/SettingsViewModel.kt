@@ -272,6 +272,9 @@ class SettingsViewModel @Inject constructor(
     fun setQwenBackend(v: QwenBackend) = viewModelScope.launch { repo.setQwenBackend(v) }
     fun setSfxMode(v: SfxMode) = viewModelScope.launch { repo.setSfxMode(v) }
 
+    /** The reader's own instructions for every translation. */
+    fun setTranslationPrompt(v: String) = viewModelScope.launch { repo.setTranslationPrompt(v) }
+
     /** Settings › About: the installed version, and a check for a newer release (shown by the app-wide dialog). */
     val appVersion: String get() = updates.currentVersion
     fun checkForUpdates() = updates.checkNow()

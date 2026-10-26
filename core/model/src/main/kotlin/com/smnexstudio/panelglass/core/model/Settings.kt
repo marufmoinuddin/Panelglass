@@ -44,6 +44,11 @@ data class Settings(
     val qwenBackend: QwenBackend = QwenBackend.AUTO,
     /** Notes for the AI engines on every series (tone, honorifics); a series adds its own in the reader. */
     val translationNotes: String = "",
+    /**
+     * The user's own instructions for every translation (how to render, what to avoid, a house style). Sent to the
+     * AI engines after the notes and before the glossary, so a prompt can talk about the terms the glossary fixes.
+     */
+    val translationPrompt: String = "",
     /** Ask GitHub for a newer release once a day at start (Settings › About); the manual check works either way. */
     val autoUpdateCheck: Boolean = true,
     /** Server address for Custom AI; not a secret. */
@@ -79,5 +84,6 @@ data class Settings(
         patchQuality = patchQuality,
         contextMode = contextMode,
         notes = translationNotes,
+        prompt = translationPrompt,
     )
 }

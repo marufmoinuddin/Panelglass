@@ -78,6 +78,8 @@ class BatchingTranslator @Inject constructor(
         val read: Boolean = false,
         /** The user's notes for this series ([TranslateConfig.notes]); items with other notes never share a call. */
         val notes: String = "",
+        /** The user's own instructions ([TranslateConfig.prompt]); items with other prompts never share a call. */
+        val prompt: String = "",
     ) {
         val result = CompletableDeferred<Reading>()
         /** Set when the caller stopped waiting; the batch it was flushed into is cancelled once every member is. */
@@ -95,8 +97,8 @@ class BatchingTranslator @Inject constructor(
         var flushJob: Job? = null
     }
 
-    /** Lanes are keyed by the full notes, not a hash of them: two series must never share a call. */
-    private data class LaneKey(val engineId: EngineId, val src: Lang, val tgt: Lang, val notes: String)
+    /** Lanes are keyed by the full notes and prompt, not a hash of them: two series must never share a call. */
+    private data class LaneKey(val engineId: EngineId, val src: Lang, val tgt: Lang, val notes: String, val prompt: String)
 
     private val lanes = HashMap<LaneKey, Lane>()
     private val lock = Mutex()
@@ -120,7 +122,7 @@ class BatchingTranslator @Inject constructor(
             if (region.unread) {
                 // Nothing to look up or de-duplicate: every unread region has the same placeholder text.
                 val crop = job.crops[i] ?: continue
-                pending += i to Pending(RegionItem(0, job.imageId, region.kind, ""), crop, cfg.src, cfg.tgt, cfg.glossary, job.priorContext, read = true, notes = cfg.notes)
+                pending += i to Pending(RegionItem(0, job.imageId, region.kind, ""), crop, cfg.src, cfg.tgt, cfg.glossary, job.priorContext, read = true, notes = cfg.notes, prompt = cfg.prompt)
                 continue
             }
             if (region.kind == RegionKind.SFX) {
@@ -131,7 +133,7 @@ class BatchingTranslator @Inject constructor(
             }
             val dedupeKey = region.kind.name + "|" + (if (region.kind == RegionKind.SFX) TextNorm.sfxKey(region.text) else region.text.trim())
             val p = local.getOrPut(dedupeKey) {
-                Pending(RegionItem(0, job.imageId, region.kind, region.text.trim()), job.crops[i], cfg.src, cfg.tgt, cfg.glossary, job.priorContext, notes = cfg.notes)
+                Pending(RegionItem(0, job.imageId, region.kind, region.text.trim()), job.crops[i], cfg.src, cfg.tgt, cfg.glossary, job.priorContext, notes = cfg.notes, prompt = cfg.prompt)
             }
             pending += i to p
         }
@@ -159,7 +161,7 @@ class BatchingTranslator @Inject constructor(
     }
 
     /** One lane per engine, language pair and notes: a call carries one set of notes. */
-    private fun laneKey(engineId: EngineId, first: Pending) = LaneKey(engineId, first.src, first.tgt, first.notes)
+    private fun laneKey(engineId: EngineId, first: Pending) = LaneKey(engineId, first.src, first.tgt, first.notes, first.prompt)
 
     private suspend fun enqueue(engineId: EngineId, items: List<Pending>, immediate: Boolean) {
         val laneKey = laneKey(engineId, items.first())
@@ -231,7 +233,7 @@ class BatchingTranslator @Inject constructor(
                 montageIdx = crops.map { it.index }
             }
         }
-        val req = TranslateRequest(items, src, tgt, glossary, context, montage, montageIdx, readImages, batch.first().notes)
+        val req = TranslateRequest(items, src, tgt, glossary, context, montage, montageIdx, readImages, batch.first().notes, batch.first().prompt)
 
         var attempt = 0
         while (true) {

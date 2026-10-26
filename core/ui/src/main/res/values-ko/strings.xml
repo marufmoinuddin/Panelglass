@@ -646,6 +646,10 @@
     <string name="settings_notes_empty">말투, 호칭, 대명사: Gemini와 기기 내 모델용</string>
     <string name="settings_notes_hint">예: 편한 말투로. 일본어 호칭은 유지.</string>
     <string name="settings_notes_note">모든 작품에 적용됩니다. 작품별 이름과 대명사는 리더에서 ⋮ › 용어집 및 대명사를 여세요.</string>
+    <string name="settings_prompt_note" translatable="false">Applies to every translation. The AI engines follow it; machine translation has no prompt and ignores it.</string>
+    <string name="settings_prompt_hint" translatable="false">e.g. Keep the tone formal. Do not translate honorifics. Keep sound effects in caps.</string>
+    <string name="settings_prompt_empty" translatable="false">Your own instructions for every translation: for Gemini and the on-device models</string>
+    <string name="settings_prompt" translatable="false">Translation prompt</string>
     <string name="action_close">닫기</string>
     <string name="settings_about">정보</string>
     <string name="update_check">업데이트 확인</string>

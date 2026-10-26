@@ -646,6 +646,10 @@
     <string name="settings_notes_empty">语气、敬称、代词：供 Gemini 和设备端模型使用</string>
     <string name="settings_notes_hint">例如：用口语化的表达。保留日语敬称。</string>
     <string name="settings_notes_note">适用于所有作品。单部作品的名字和代词，请在阅读器中打开 ⋮ › 术语表与代词。</string>
+    <string name="settings_prompt_note" translatable="false">Applies to every translation. The AI engines follow it; machine translation has no prompt and ignores it.</string>
+    <string name="settings_prompt_hint" translatable="false">e.g. Keep the tone formal. Do not translate honorifics. Keep sound effects in caps.</string>
+    <string name="settings_prompt_empty" translatable="false">Your own instructions for every translation: for Gemini and the on-device models</string>
+    <string name="settings_prompt" translatable="false">Translation prompt</string>
     <string name="action_close">关闭</string>
     <string name="settings_about">关于</string>
     <string name="update_check">检查更新</string>

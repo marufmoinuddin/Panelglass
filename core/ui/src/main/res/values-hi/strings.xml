@@ -661,6 +661,10 @@
     <string name="settings_notes_empty">लहजा, आदरसूचक शब्द, सर्वनाम: Gemini और डिवाइस पर चलने वाले मॉडल के लिए</string>
     <string name="settings_notes_hint">जैसे: बोलचाल की भाषा इस्तेमाल करें। जापानी आदरसूचक शब्द रखें।</string>
     <string name="settings_notes_note">हर सीरीज़ पर लागू। किसी एक सीरीज़ के नाम और सर्वनाम के लिए रीडर में ⋮ › शब्दावली और सर्वनाम खोलें।</string>
+    <string name="settings_prompt_note" translatable="false">Applies to every translation. The AI engines follow it; machine translation has no prompt and ignores it.</string>
+    <string name="settings_prompt_hint" translatable="false">e.g. Keep the tone formal. Do not translate honorifics. Keep sound effects in caps.</string>
+    <string name="settings_prompt_empty" translatable="false">Your own instructions for every translation: for Gemini and the on-device models</string>
+    <string name="settings_prompt" translatable="false">Translation prompt</string>
     <string name="action_close">बंद करें</string>
     <string name="settings_about">जानकारी</string>
     <string name="update_check">अपडेट देखें</string>

@@ -661,6 +661,10 @@
     <string name="settings_notes_empty">Tono, honoríficos, pronombres: para Gemini y los modelos en el dispositivo</string>
     <string name="settings_notes_hint">p. ej. Usar un tono informal. Mantener los honoríficos japoneses.</string>
     <string name="settings_notes_note">Se aplica a todas las series. Para los nombres y pronombres de una serie, abre ⋮ › Glosario y pronombres en el lector.</string>
+    <string name="settings_prompt_note" translatable="false">Applies to every translation. The AI engines follow it; machine translation has no prompt and ignores it.</string>
+    <string name="settings_prompt_hint" translatable="false">e.g. Keep the tone formal. Do not translate honorifics. Keep sound effects in caps.</string>
+    <string name="settings_prompt_empty" translatable="false">Your own instructions for every translation: for Gemini and the on-device models</string>
+    <string name="settings_prompt" translatable="false">Translation prompt</string>
     <string name="action_close">Cerrar</string>
     <string name="settings_about">Acerca de</string>
     <string name="update_check">Buscar actualizaciones</string>

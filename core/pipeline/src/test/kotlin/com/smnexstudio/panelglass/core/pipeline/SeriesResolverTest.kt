@@ -24,4 +24,13 @@ class SeriesResolverTest {
         assertNotEquals(SeriesResolver.digest(a), SeriesResolver.digest(a.copy(notes = "Drop honorifics.")))
         assertNotEquals(SeriesResolver.digest(a), SeriesResolver.digest(a.copy(glossary = mapOf("ミナ" to "Meena", "レン" to "Ren"))))
     }
+
+    @Test
+    fun theDigestFollowsThePrompt() {
+        // A changed prompt must not serve the cached translation of the old one.
+        val a = cfg.copy(prompt = "Keep the tone formal.")
+        assertNotEquals("", SeriesResolver.digest(a))
+        assertNotEquals(SeriesResolver.digest(a), SeriesResolver.digest(a.copy(prompt = "Keep the tone casual.")))
+        assertNotEquals(SeriesResolver.digest(a), SeriesResolver.digest(cfg.copy(notes = "A note.")))
+    }
 }

@@ -77,6 +77,7 @@ import com.smnexstudio.panelglass.core.model.ModelState
 import com.smnexstudio.panelglass.core.model.UserModel
 import com.smnexstudio.panelglass.core.model.QwenBackend
 import com.smnexstudio.panelglass.core.model.TranslationNotes
+import com.smnexstudio.panelglass.core.model.TranslationPrompt
 import com.smnexstudio.panelglass.core.model.SfxMode
 import com.smnexstudio.panelglass.core.model.ComputeBackend
 import com.smnexstudio.panelglass.core.engine.local.BackendNote
@@ -152,6 +153,7 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
     var backendPicker by remember { mutableStateOf(false) }
     var packsSheet by remember { mutableStateOf(false) }
     var notesDialog by remember { mutableStateOf(false) }
+    var promptDialog by remember { mutableStateOf(false) }
     var sfxPicker by remember { mutableStateOf(false) }
     val sfxNames = mapOf(
         SfxMode.SKIP to stringResource(UiR.string.studio_sfx_keep), SfxMode.REPLACE to stringResource(UiR.string.studio_sfx_replace),
@@ -223,6 +225,13 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
                 stringResource(UiR.string.settings_notes),
                 s.translationNotes.lineSequence().firstOrNull { it.isNotBlank() } ?: stringResource(UiR.string.settings_notes_empty),
                 stringResource(UiR.string.action_edit), onAction = { notesDialog = true },
+            )
+            CardDivider()
+            // The reader's own instructions for every translation: a house style, what to avoid.
+            ActionRow(
+                stringResource(UiR.string.settings_prompt),
+                s.translationPrompt.lineSequence().firstOrNull { it.isNotBlank() } ?: stringResource(UiR.string.settings_prompt_empty),
+                stringResource(UiR.string.action_edit), onAction = { promptDialog = true },
             )
         }
 
@@ -402,6 +411,7 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
         render = { sfxNames.getValue(it) }, onPick = { vm.setSfxMode(it) }, onDismiss = { sfxPicker = false },
     )
     if (notesDialog) TranslationNotesDialog(s.translationNotes, onDismiss = { notesDialog = false }) { vm.setTranslationNotes(it); notesDialog = false }
+    if (promptDialog) TranslationPromptDialog(s.translationPrompt, onDismiss = { promptDialog = false }) { vm.setTranslationPrompt(it); promptDialog = false }
 
     deletingManga?.let { m ->
         DeleteMangaDialog(m, onDismiss = { deletingManga = null }) { vm.deleteStudioManga(m.manga); deletingManga = null }
@@ -1240,6 +1250,40 @@ private fun TranslationNotesDialog(initial: String, onDismiss: () -> Unit, onSav
         )
         Text(
             stringResource(UiR.string.settings_notes_note), style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            TextAction(stringResource(UiR.string.action_cancel), Tokens.InkSoft, onDismiss)
+            Spacer(Modifier.width(8.dp))
+            PrimaryPill(stringResource(UiR.string.action_save).uppercase(), letterSpaced = true, onClick = { onSave(draft) })
+        }
+    }
+}
+
+/**
+ * The reader's own instructions for every translation. The AI engines follow them; machine translation has no
+ * prompt and ignores them.
+ */
+@Composable
+private fun TranslationPromptDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var draft by remember(initial) { mutableStateOf(initial) }
+    StickerDialog(onDismiss) {
+        Text(stringResource(UiR.string.settings_prompt), fontFamily = Jakarta, fontWeight = FontWeight.W800, fontSize = 20.sp, color = Tokens.Ink)
+        Spacer(Modifier.height(14.dp))
+        OutlinedTextField(
+            value = draft, onValueChange = { draft = it.take(TranslationPrompt.MAX_CHARS) },
+            placeholder = { Text(stringResource(UiR.string.settings_prompt_hint)) },
+            minLines = 3, maxLines = 8,
+            supportingText = { Text("${draft.length} / ${TranslationPrompt.MAX_CHARS}") },
+            shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Tokens.Ink, unfocusedBorderColor = Tokens.Border, focusedTextColor = Tokens.Ink, unfocusedTextColor = Tokens.Ink,
+                cursorColor = Tokens.Ink, focusedPlaceholderColor = Tokens.InkFaint, unfocusedPlaceholderColor = Tokens.InkFaint,
+            ),
+        )
+        Text(
+            stringResource(UiR.string.settings_prompt_note), style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft,
             modifier = Modifier.padding(top = 4.dp),
         )
         Spacer(Modifier.height(16.dp))

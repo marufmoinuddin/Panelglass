@@ -646,6 +646,10 @@
     <string name="settings_notes_empty">口調、敬称、代名詞: Gemini と端末上のモデル向け</string>
     <string name="settings_notes_hint">例: くだけた口調で。日本語の敬称は残す。</string>
     <string name="settings_notes_note">すべての作品に適用されます。作品ごとの名前と代名詞はリーダーの ⋮ › 用語集と代名詞 で設定します。</string>
+    <string name="settings_prompt_note" translatable="false">Applies to every translation. The AI engines follow it; machine translation has no prompt and ignores it.</string>
+    <string name="settings_prompt_hint" translatable="false">e.g. Keep the tone formal. Do not translate honorifics. Keep sound effects in caps.</string>
+    <string name="settings_prompt_empty" translatable="false">Your own instructions for every translation: for Gemini and the on-device models</string>
+    <string name="settings_prompt" translatable="false">Translation prompt</string>
     <string name="action_close">閉じる</string>
     <string name="settings_about">このアプリについて</string>
     <string name="update_check">アップデートを確認</string>

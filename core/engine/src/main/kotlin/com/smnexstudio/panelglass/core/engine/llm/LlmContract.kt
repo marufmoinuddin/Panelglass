@@ -8,6 +8,7 @@ import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.RegionItem
 import com.smnexstudio.panelglass.core.model.TranslateRequest
 import com.smnexstudio.panelglass.core.model.TranslatedItem
+import com.smnexstudio.panelglass.core.model.TranslationPrompt
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -56,6 +57,12 @@ object LlmContract {
         if (req.notes.isNotBlank()) {
             append("Notes from the reader about this series (follow them; use the characters' pronouns and genders where the source leaves the subject out):\n")
             append(req.notes.trim()).append('\n')
+        }
+        if (req.prompt.isNotBlank()) {
+            // The user's own instructions. They come after the notes (so a note is about the series and this is about
+            // every translation) and before the glossary, so the prompt may talk about the terms the glossary fixes.
+            append("The reader's instructions for every translation (follow them):\n")
+            append(req.prompt.trim().take(TranslationPrompt.MAX_CHARS)).append('\n')
         }
         if (req.glossary.isNotEmpty()) {
             append("Glossary (always use these renderings):\n")

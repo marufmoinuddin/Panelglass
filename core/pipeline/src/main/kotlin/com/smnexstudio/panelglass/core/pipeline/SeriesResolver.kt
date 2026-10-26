@@ -24,8 +24,9 @@ class SeriesResolver(private val glossary: GlossaryRepository) {
     companion object {
         /** A short digest of what the engine is told beyond the page, for the patch-cache key; "" when nothing. */
         fun digest(cfg: TranslateConfig): String {
-            if (cfg.glossary.isEmpty() && cfg.notes.isEmpty()) return ""
-            val text = cfg.glossary.entries.sortedBy { it.key }.joinToString("\n") { it.key + "\u0000" + it.value } + "\u0001" + cfg.notes
+            if (cfg.glossary.isEmpty() && cfg.notes.isEmpty() && cfg.prompt.isEmpty()) return ""
+            val text = cfg.glossary.entries.sortedBy { it.key }.joinToString("\n") { it.key + "\u0000" + it.value } +
+                "\u0001" + cfg.notes + "\u0002" + cfg.prompt
             return MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
         }
     }
