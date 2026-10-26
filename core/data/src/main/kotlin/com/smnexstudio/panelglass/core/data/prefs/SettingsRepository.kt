@@ -9,8 +9,10 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.smnexstudio.panelglass.core.model.AppTheme
 import com.smnexstudio.panelglass.core.model.BubbleFont
+import com.smnexstudio.panelglass.core.model.CastSheet
 import com.smnexstudio.panelglass.core.model.ContextMode
 import com.smnexstudio.panelglass.core.model.ComputeBackend
+import com.smnexstudio.panelglass.core.model.DialogueContext
 import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.FreeTextMode
 import com.smnexstudio.panelglass.core.model.Lang
@@ -23,6 +25,8 @@ import com.smnexstudio.panelglass.core.model.UserModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -63,6 +67,10 @@ class SettingsRepository @Inject constructor(
         val automaticPacks = booleanPreferencesKey("automaticPacksDone")
         val translationNotes = stringPreferencesKey("translationNotes")
         val translationPrompt = stringPreferencesKey("translationPrompt")
+        /** How much of the conversation around a bubble the reader sends to the model. */
+        val dialogueContext = stringPreferencesKey("dialogueContext")
+        /** The user's character sheets, one per website host: a JSON object of host to text. */
+        val castSheets = stringPreferencesKey("castSheets")
         val updateCheckedAt = longPreferencesKey("updateCheckedAt")
         val autoUpdateCheck = booleanPreferencesKey("autoUpdateCheck")
         /** The user's own OpenAI-compatible server for the "Custom AI" engine; an address, not a secret. */
@@ -94,6 +102,7 @@ class SettingsRepository @Inject constructor(
             qwenBackend = p[K.qwenBackend]?.let { enumOrNull<QwenBackend>(it) } ?: d.qwenBackend,
             translationNotes = p[K.translationNotes] ?: d.translationNotes,
             translationPrompt = p[K.translationPrompt] ?: d.translationPrompt,
+            dialogueContext = p[K.dialogueContext]?.let { enumOrNull<DialogueContext>(it) } ?: d.dialogueContext,
             autoUpdateCheck = p[K.autoUpdateCheck] ?: d.autoUpdateCheck,
             computeBackend = p[K.computeBackend]?.let { enumOrNull<ComputeBackend>(it) }
                 // A phone that only ever chose Qwen's backend keeps that choice.
@@ -130,6 +139,44 @@ class SettingsRepository @Inject constructor(
     /** The user's own instructions for every translation. */
     suspend fun setTranslationPrompt(v: String) {
         dataStore.edit { it[K.translationPrompt] = TranslationPrompt.clean(v) }
+    }
+
+    /** How much of the conversation around a bubble the reader sends to the model. */
+    suspend fun setDialogueContext(v: DialogueContext) { dataStore.edit { it[K.dialogueContext] = v.name } }
+
+    /** The character sheet of one website host, or an empty string when there is none. */
+    suspend fun castSheetFor(host: String): String = castSheets(dataStore.data.first())[host.lowercase()].orEmpty()
+
+    /** The character sheet of one website host, and every change to it. */
+    fun castSheetFlow(host: String): Flow<String> =
+        dataStore.data.map { p -> castSheets(p)[host.lowercase()].orEmpty() }
+
+    /**
+     * The user's character sheet for one website host.
+     *
+     * One sheet per website is a deliberate simplification: the reader's series key is too coarse to hold one per
+     * series, and a host is what the user actually thinks in.
+     */
+    suspend fun setCastSheet(host: String, text: String) {
+        val key = host.lowercase()
+        val clean = CastSheet.clean(text)
+        dataStore.edit { p ->
+            // The map keeps the order the sheets were written in, so the oldest are the first.
+            val sheets = LinkedHashMap(castSheets(p))
+            if (clean.isBlank()) sheets.remove(key) else sheets[key] = clean
+            val kept = if (sheets.size > MAX_CAST_HOSTS) {
+                LinkedHashMap(sheets.entries.drop(sheets.size - MAX_CAST_HOSTS).associate { it.key to it.value })
+            } else sheets
+            p[K.castSheets] = json.encodeToString(castSheetsSerializer, kept)
+        }
+    }
+
+    /** Every stored sheet; a damaged file gives none rather than crashing the app. */
+    private fun castSheets(p: Preferences): Map<String, String> {
+        val raw = p[K.castSheets] ?: return emptyMap()
+        return runCatching {
+            json.decodeFromString(castSheetsSerializer, raw)
+        }.getOrDefault(emptyMap())
     }
 
     /** Where every on-device model runs. */
@@ -222,4 +269,12 @@ class SettingsRepository @Inject constructor(
 
     private inline fun <reified T : Enum<T>> enumOrNull(name: String): T? =
         enumValues<T>().firstOrNull { it.name == name }
+
+    companion object {
+        /** How many websites keep a character sheet. */
+        const val MAX_CAST_HOSTS = 200
+
+        /** The sheets, as a JSON object of host to text. */
+        private val castSheetsSerializer = MapSerializer(String.serializer(), String.serializer())
+    }
 }

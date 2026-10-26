@@ -9,6 +9,14 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ### Added
 
+- **Dialogue context.** Settings › Translation gains a three-way choice: *Off* (as before), *Standard* (six lines) or
+  *Deep* (twelve). The reader remembers every bubble it has translated and sends the lines that come just before the
+  new screen, so a pronoun has an antecedent and a name is the same name. The cloud engines and your own server are
+  also asked who says each line, and the earlier lines are shown to the model with the speaker's label. The
+  on-device models get at most four lines: their cache is small.
+- **A character sheet per website.** ⋮ › *Characters…* in the reader opens the cast of the website being read — one
+  line per character — and it goes into the prompt as data, so the model keeps names, genders and pronouns
+  consistent. It is never shared, and it is not sent anywhere but the engine that is translating.
 - **A warning when the model is too small to follow the translation format.** A model of about a billion parameters or
   less usually cannot be told to answer with a JSON array; the sheet says so under the model field, without stopping
   you from saving it.

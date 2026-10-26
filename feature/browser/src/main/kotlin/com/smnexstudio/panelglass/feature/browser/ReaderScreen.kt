@@ -121,6 +121,7 @@ fun ReaderScreen(
     // The number of screens a whole-page scan would translate; not null means the confirm dialog is up.
     var confirmScan by remember { mutableStateOf<Int?>(null) }
     var seriesSheet by remember { mutableStateOf(false) }
+    var castSheet by remember { mutableStateOf(false) }
     val seriesTerms by vm.seriesTerms.collectAsStateWithLifecycle()
     val seriesNotes by vm.seriesNotes.collectAsStateWithLifecycle()
 
@@ -278,6 +279,8 @@ fun ReaderScreen(
                     DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_translate_whole_page)) }, onClick = { menu = false; scope.launch { requestScan() } })
                     // The series' names, characters' pronouns and notes: what the engine is told beyond the page.
                     if (ui.config != null) DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_series_memory)) }, onClick = { menu = false; seriesSheet = true })
+                    // Who is in this series: the model is told, so it keeps names and pronouns right.
+                    DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_characters)) }, onClick = { menu = false; castSheet = true })
                     if (ui.site == null) DropdownMenuItem(text = { Text(stringResource(UiR.string.reader_add_to_sites)) }, onClick = { menu = false; scope.launch { vm.addCurrentSite() } })
                 }
             }
@@ -340,6 +343,12 @@ fun ReaderScreen(
                     else ErrorRow(stringResource(UiR.string.error_unavailable_now, failure.engine.uiName()), stringResource(UiR.string.action_use_google_translate)) { vm.switchToOnDevice { captureViewport(webView) } }
                 else -> Unit
             }
+            if (castSheet) CastSheetDialog(
+                initial = vm.castSheet(),
+                onDismiss = { castSheet = false },
+                onSave = { vm.saveCastSheet(it); castSheet = false },
+                onClear = { vm.saveCastSheet(""); castSheet = false },
+            )
             if (seriesSheet) SeriesMemorySheet(
                 scope = ui.config?.seriesKey.orEmpty(), terms = seriesTerms, notes = seriesNotes,
                 onSaveTerm = vm::saveTerm, onDeleteTerm = vm::deleteTerm, onNotes = vm::saveSeriesNotes,

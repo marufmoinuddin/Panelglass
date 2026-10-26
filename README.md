@@ -287,9 +287,14 @@ Panelglass is not on Google Play. Each release is published on GitHub:
 3. For Japanese with an offline engine, also download **Japanese manga OCR** (140 MB).
 4. Choose what happens to **Sound effects** (Keep or Replace) and, for Gemini or an on-device model,
    add a few **Translation notes** ([suggested notes](docs/TRANSLATION_QUALITY.md#translation-notes)).
-5. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
+5. **Dialogue context** (Settings → Translation) says how much of the conversation around a bubble is sent with it:
+   *Off* (the old behaviour, two lines), *Standard* (six) or *Deep* (twelve). With it on, the cloud engines are also
+   asked who says each line, and the reader's three-dot menu gains **Characters…** — the cast of the website being
+   read, one line per character, so names and pronouns stay the same from one screen to the next.
+6. Check the setup with **Try a translation**, then add a site under **Sites**, open a chapter and press **Start**.
    **Stop** ends translation; **⋮ → Re-translate** reads the current screen again from scratch; **⋮ → Glossary &
    pronouns** sets the series' character names and pronouns.
+
 4. **Your own offline model.** Settings › Models › **Browse models** searches the Hugging Face catalogue of
    LiteRT-LM models (or type `owner/name` to list a repository directly); pick a `.litertlm` file, confirm, and wait
    for the download. **Import from file** adds a `.litertlm` file you already have on the phone. Tap **Use** on a

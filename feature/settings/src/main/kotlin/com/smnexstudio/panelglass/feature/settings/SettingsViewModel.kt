@@ -31,6 +31,7 @@ import com.smnexstudio.panelglass.core.ocr.MangaOcrStore
 import com.smnexstudio.panelglass.core.ocr.LamaStore
 import com.smnexstudio.panelglass.core.engine.mt.PackState
 import com.smnexstudio.panelglass.core.model.EngineException
+import com.smnexstudio.panelglass.core.model.DialogueContext
 import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.CustomEndpoint
@@ -292,6 +293,9 @@ class SettingsViewModel @Inject constructor(
 
     /** The reader's own instructions for every translation. */
     fun setTranslationPrompt(v: String) = viewModelScope.launch { repo.setTranslationPrompt(v) }
+
+    /** How much of the conversation around a bubble the reader sends to the model. */
+    fun setDialogueContext(v: DialogueContext) = viewModelScope.launch { repo.setDialogueContext(v) }
 
     /** Settings › About: the installed version, and a check for a newer release (shown by the app-wide dialog). */
     val appVersion: String get() = updates.currentVersion

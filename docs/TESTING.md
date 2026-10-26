@@ -12,6 +12,7 @@ Counts as of 2026-10-26: **565 unit tests** in 91 classes, **2 instrumented test
 Counts as of 2026-10-26: **563 unit tests** in 92 classes, **2 instrumented tests**, all passing.
 Counts as of 2026-10-26: **571 unit tests** in 92 classes, **2 instrumented tests**, all passing.
 Counts as of 2026-10-26: **593 unit tests** in 94 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-26: **657 unit tests** in 103 classes, **2 instrumented tests**, all passing.
 
 ## Contents
 
@@ -56,10 +57,13 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 
 ## Unit tests by module
 
-### core:model (63)
+### core:model (75)
 
 | Class | Tests | Covers |
 |---|---|---|
+| `DialogueContextTest` | 5 | The dialogue-context level: off keeps today's two lines for any engine, standard sends six to a cloud engine and four to an on-device one, deep sends twelve and four, and a config that sets nothing behaves as off |
+| `CastSheetTest` | 5 | The character sheet: trimmed, control characters removed but newlines kept, three blank lines made one, cut at the cap, and shorter for a prompt than for the store |
+| `ContextPairSerializationTest` | 2 | A context pair with and without a speaker survives being written down and read back |
 | `ModelSizeHintTest` | 3 | The size a model name gives away: `Llama-3.2-1B-Instruct` is 1, `llama3.2:1b` is 1, `Qwen2.5-0.5B` is 0.5, `qwen2.5-7b-instruct` is 7, `SEA-LION-v3.5-8B` is 8, `mistral-7b-v0.1` is 7; `gpt-4o`, `gemma-3-270m`, `phi-3.5-mini-instruct` and `x86b` say nothing; the last size in the name wins |
 | `CustomEndpointTest` | 16 | The address of the user's own server: a loopback and a private address over plain http are usable and local; an address without a scheme is http to a local host and https to a public one; a pasted `…/chat/completions` keeps its chat URL and gets the right models URL; a query and a fragment are ignored; plain http to a public host (including an address shaped like an IPv4 address but invalid) is refused; the local network is recognised (loopback, the private ranges, CGNAT, IPv6 unique-local, `.local` names, single-label names) and the internet is not; credentials in the address are refused; another scheme is refused; an empty address is refused; **an IPv6 address that only looks local is not local** (`2606:4700::ffff:c0a8:1`, `::ffff:8.8.8.8`, `fec0::1`, `ff02::1`, `2001:db8::1`, `1:2:3`, `zz::1` are refused, `::ffff:192.168.0.5`, `::1`, `[::1]`, `fe80::1`, `febf::1`, `fc00::1`, `fd12:3456:789a::1` are local); plain http to a public IPv6 address is refused |
 | `BubbleFontTest` | 4 | Saved font names round-trip; retired fonts map to their successor; unknown names are null; each names its Studio catalogue id (`cat:…`), what a choice saved before the catalogue reads back as |
@@ -73,10 +77,13 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `WebUrlTest` | 6 | https only: https kept, http upgraded, a bare host gets `https://`, whitespace trimmed; `javascript:`/`file:`/`content:`/`intent:`/`data:` and non-URLs are null |
 | `CustomEndpointTest` | 18 | The "Custom AI" server address: a base is kept as written; whitespace trimmed; a pasted `…/chat/completions` (with or without a trailing slash) is reduced to its base; any version path is preserved and `/v1` is never added; blank, scheme-less, host-less, spaced, query, fragment, other-scheme and credential-bearing addresses are null; plain http is refused unless the test switch allows it |
 
-### core:data (39)
+### core:data (53)
 
 | Class | Tests | Covers |
 |---|---|---|
+| `DialogueContextSettingTest` | 4 | The dialogue-context level is saved, read back, survives a new repository over the same store, falls back to the default when the stored name is unknown, and reaches the resolved config |
+| `CastSheetSettingTest` | 7 | The character sheets: saved and read back, the host is not case sensitive, a blank sheet removes the host, a sheet is cleaned, a damaged file gives none, two websites keep their own sheet, and the flow follows the sheet |
+| `PatchCacheKeyTest` | 3 | The patch cache key: an empty variant leaves it exactly as it was, a variant changes it, and two variants give two keys |
 | `Migration3To4Test` | 2 | A version-3 database opened by the app: sites, history, glossary and SFX cache survive; the Studio tables exist; `url_etag` and `ocr_cache` are dropped |
 | `Migration4To5Test` | 2 | A version-4 database opened by the app: glossary entries survive without a pronoun and take one; series notes are stored, read and removed per series |
 | `RetiredSfxModeTest` | 3 | Studio effects saved as Gloss or Overlay (removed) open as Replace with their text and transform kept; Overlay, never written, reads as Replace; Keep and Replace read as saved |
@@ -85,14 +92,12 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `ReleaseInfoTest` | 7 | In-app updates: GitHub's latest-release reply is read; drafts, pre-releases and a release without its `.sha256` are not offered; an APK URL outside this repository's https releases is refused; versions compare as numbers; the checksum line is matched by file name; a tag with a suffix (`v0.3.0-test`) is not a release; installed, older and interrupted downloads are spent, a newer APK is kept |
 | `SystemDownloadsIntegrityTest` | 6 | A download matching its SHA-256 is moved into place and remembered; a mismatch is deleted, never placed; a file already on disk is checked once; a file changed after its check is checked again; **a plain http download is refused and nothing is queued**; another scheme is refused too |
 
-### core:engine (206)
-### core:engine (115)
-
-### core:engine (130)
-### core:engine (140)
+### core:engine (233)
 
 | Class | Tests | Covers |
 |---|---|---|
+| `PromptGoldenTest` | 6 | The prompts as they are today, captured exactly: the cloud prompt for a plain request, with a glossary and preceding lines, with crops and with a montage; the on-device prompt for a plain request and with a glossary and preceding lines. They must not change by a character while the dialogue-context work is done: with the setting off, nothing changes |
+| `DialogueContextPromptTest` | 14 | The prompts when the setting is on: the conversation rule, the character block (as data, never instructions), the speaker key in both output variants and the rule that explains it, preceding lines labelled `[A] …` with the new header, a long line cut at 160 characters, the on-device prompt's conversation rule and short sheet; the parse reads the speaker, ignores a blank or overlong one, and still reads a reply without one |
 | `RegistryAndQwenTest` | 30 | **Engine selection:** the default is Google Translate; only Gemini, Custom AI, Google Translate and the on-device models (including the user's own) are offered; changing the backend reloads Qwen *and* Gemma 4; what actually ran is reported; a planned engine never resolves; a keyed engine without its key is `MissingKey`, never a fallback; removing a key keeps the selection. **On-device prompts:** numbered-line payload with SFX marked; token-budget chunking; lenient line parser that drops echoes and stray numbers; streamed reply cut when complete; partial replies keep what parsed and retry only the rest; byte-level stand-ins repaired; system text and payload as separate turns. **Model lifecycle:** a missing model is a typed failure; loading one model releases the other; Gemma 4 only on 8 GB phones; *Run models on* reloads a model on the other backend at its next call; Automatic picks the CPU under 6 GB; a model busy when the UI is hidden is released after its last call; coming back first keeps it |
 | `ProviderEngineTest` | 9 | Against MockWebServer: 401 → `MissingKey`; a missing key never reaches the network; Gemini steps down past a request option a model refuses and remembers it; display names resolve to ids, Gemma models get no Gemini-only options; the model list keeps text models, Gemini first; OpenAI / OpenRouter send the user's model and key |
 | `LlmContractTest` | 17 | The cloud JSON contract: strict and tolerant parsing (prose, code fences), length mismatch and garbage are `Malformed`; HTTP status mapping, Gemini "high demand" is `Overloaded` with the provider's message; the retry policy is bounded and capped; glossary and montage mapping in the prompt; the reader's notes reach the cloud, on-device and per-item prompts and survive `withItems`; **the prompt shows what a single-item reply looks like and says the first character must be `[`**; **the retry message carries the input with it** |
@@ -117,7 +122,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `SfxDictionaryTest` | 4 | The bundled SFX tables: hiragana finds the katakana entry; another ッ or ー still matches (ガツーン → ガツン); other words miss; both tables parse with a rendering for every entry |
 | `LanguagePackStoreTest` | 6 | Google Translate packs: every app language once (Chinese variants share a pack); only Japanese, Korean and Chinese download automatically; any other pack is missing until the user downloads it, and asking never downloads; English and packs already present are never fetched; a failure is reported for that language only; delete removes one pack, never English |
 
-### core:ocr (40)
+### core:ocr (43)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -132,7 +137,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `UprightTiltTest` | 3 | ML Kit's angle as a tilt from upright: a vertical column (±90°) and upside-down text are upright; a real tilt is kept |
 | `PanelCutterTest` | 2 | Synthetic panels detected and regions ordered by panel, right to left for manga |
 
-### core:render (45)
+### core:render (56)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -148,10 +153,11 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `LongestRunTest` | 5 | The unbreakable run the text fitter tests: an English word with its punctuation; hyphens break; ellipses and quotes do not join words; CJK breaks between any two characters |
 | `PanelInkTest` | 3 | Ink on a mask: contrasting ink kept, otherwise black on a light mask and white on a dark one |
 
-### feature:browser (26)
+### feature:browser (55)
 
 | Class | Tests | Covers |
 |---|---|---|
+| `ChapterMemoryTest` | 10 | The reader's memory: only the lines above are given, the nearest ones, in reading order; the same bubble replaces the old one, a different one is kept, a far-away line with the same text is another bubble; at most 600 lines are kept, clearing forgets everything, the speaker is carried, and two threads may use it at once |
 | `BlockListTest` | 11 | Hosts and AdBlock formats parsed; exact hosts and their subdomains blocked, parents and unrelated hosts not; `@@` exceptions win; wildcard and context-scoped rules skipped; localhost ignored; cached form round-trips |
 | `PatchAnchorTest` | 8 | A patch is anchored to the image under its centre; it follows a reader moving its page in its own layer and scroll anchoring; no key, no anchor; an image off screen leaves the patch in place; the anchor is the same place on the art at any zoom; a patch's CSS rect scales with the zoom; one bubble captured at two zooms is a duplicate |
 | `SessionLanguagesTest` | 4 | The page's detected language applies on its host only; a site's saved source wins over it; the launch intent wins over both; ML Kit tags map to Japanese, Korean or Chinese (a chosen Chinese script is kept) |
@@ -183,7 +189,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `ImageHeaderTest` | 7 | Size and format from the header alone: PNG, JPEG past a large EXIF segment, the three WebP forms; animated WebP, GIF and AVIF are converted, still images copied; HEIC and junk are not images |
 | `ImageImporterTest` | 8 | Twenty picked images keep the natural order and their bytes; a preview reorder sticks; over-cap, oversized and HEIC files are refused without leaving a file; converted formats have their own cap; an undecodable file is skipped; discarded pages are deleted; series / chapter / volume guessed from file names; PDF pages rendered at 2×, capped at 2000 px wide and by pixels |
 
-### core:pipeline (8)
+### core:pipeline (18)
 
 | Class | Tests | Covers |
 |---|---|---|
