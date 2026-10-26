@@ -25,7 +25,7 @@ enum class EngineId(
      * A user-supplied OpenAI-compatible server: the user names the base address and the model in Settings. Text only:
      * the on-device OCR feeds it, no image is ever sent.
      */
-    CUSTOM("Custom AI", KeyRequirement.USER_KEY, ""),
+    CUSTOM("Custom AI", KeyRequirement.OPTIONAL_KEY, ""),
     CLAUDE("Claude", KeyRequirement.USER_KEY, "claude-haiku-4-5", offered = false),
     OPENAI("OpenAI", KeyRequirement.USER_KEY, "gpt-4.1-mini", offered = false),
     DEEPL("DeepL", KeyRequirement.USER_KEY, offered = false),
@@ -49,6 +49,12 @@ enum class EngineId(
 
     val needsKey: Boolean get() = keyRequirement == KeyRequirement.USER_KEY
 
+    /**
+     * Whether the engine takes a key at all: it may take one, or insist on one. A key the user did not type is sent
+     * as none, which is what a server on the user's own network usually wants.
+     */
+    val takesKey: Boolean get() = keyRequirement != KeyRequirement.NONE
+
     /** Whether the user picks a model name for this provider. */
     val hasModel: Boolean get() = defaultModel != null
 
@@ -60,7 +66,7 @@ enum class EngineId(
 }
 
 @Serializable
-enum class KeyRequirement { NONE, USER_KEY }
+enum class KeyRequirement { NONE, USER_KEY, OPTIONAL_KEY }
 
 /**
  * Marks an engine implementation that is a **temporary placeholder** for a planned engine: the code is kept and its
