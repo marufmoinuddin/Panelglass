@@ -37,9 +37,14 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
     /**
      * Queues [url] into `root()/[relativePath]`. The file is written as `…part` and renamed by [await] once complete,
      * so a half-written file is never mistaken for a model. Starting an already queued key is a no-op.
+     *
+     * Only `https` is queued. DownloadManager follows redirects on its own and no interceptor of ours sees them, so
+     * the scheme is checked here, before anything is queued: a plain http address would be fetched in the clear and
+     * its redirect target too.
      */
     fun start(key: String, url: String, relativePath: String, title: String, description: String = "Panelglass on-device model") {
         if (isActive(key)) return
+        if (!url.startsWith("https://", ignoreCase = true)) throw IOException(NOT_HTTPS)
         val root = root() ?: throw IOException("Storage unavailable")
         File(root, "$relativePath.part").apply { parentFile?.mkdirs(); delete() }
         val req = DownloadManager.Request(Uri.parse(url))
@@ -178,5 +183,7 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
         /** Progress note while a finished download is being hashed. */
         const val CHECKING = "checking the file"
         const val CORRUPT = "File failed its integrity check; tap Retry"
+        /** A download that is not https is refused: DownloadManager follows redirects on its own. */
+        const val NOT_HTTPS = "Only https downloads are allowed"
     }
 }

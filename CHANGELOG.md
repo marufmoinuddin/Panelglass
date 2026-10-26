@@ -19,6 +19,13 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ### Fixed
 
+- **Plain http is refused to every address that is not on the local network, including IPv6 addresses that only look
+  local; the update check and downloads follow the same rule.** An IPv6 address such as `2606:4700::ffff:c0a8:1`
+  carries `192.168.0.1` in its last four bytes and was judged to be on the local network, so plain http to it was
+  allowed — through a redirect too. It is refused now, and so are multicast addresses and the deprecated site-local
+  range. The update check had a client of its own without the guard, and model downloads are queued through
+  `DownloadManager`, which follows redirects on its own and no interceptor of ours can see: only `https` is queued
+  now.
 - **Importing a model file could not work.** The progress row formatted a string with fewer arguments than it
   needed, which took the Settings screen down as soon as an import started. The row has its own string now, and the
   screen checks every string it shows against the arguments that string declares.

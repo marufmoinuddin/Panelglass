@@ -63,4 +63,30 @@ class SystemDownloadsIntegrityTest {
         assertNotNull(downloads.adopt(f, sha))
         assertTrue(downloads.isVerified(f, sha))
     }
+
+    @Test
+    fun aPlainHttpDownloadIsRefusedAndNothingIsQueued() {
+        try {
+            downloads.start("plain", "http://example.com/x.bin", "models/x.bin", "Panelglass")
+            fail("expected IOException")
+        } catch (e: IOException) {
+            assertEquals(SystemDownloads.NOT_HTTPS, e.message)
+        }
+        // Nothing was queued: no download is remembered, and no file was started.
+        assertFalse(downloads.isActive("plain"))
+        assertFalse(File(downloads.root(), "models/x.bin.part").exists())
+    }
+
+    @Test
+    fun otherSchemesAreRefusedToo() {
+        for (url in listOf("ftp://example.com/x.bin", "file:///tmp/x.bin", "https-not://example.com/x.bin")) {
+            try {
+                downloads.start("scheme", url, "models/y.bin", "Panelglass")
+                fail("expected IOException for $url")
+            } catch (e: IOException) {
+                assertEquals(SystemDownloads.NOT_HTTPS, e.message)
+            }
+        }
+        assertFalse(downloads.isActive("scheme"))
+    }
 }

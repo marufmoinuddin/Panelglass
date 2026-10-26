@@ -3,6 +3,7 @@ package com.smnexstudio.panelglass.core.data.update
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.smnexstudio.panelglass.core.data.BuildConfig
+import com.smnexstudio.panelglass.core.data.di.LocalOnlyCleartext
 import com.smnexstudio.panelglass.core.data.download.SystemDownloads
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -130,7 +131,14 @@ class AppUpdates @Inject constructor(
     private val settings: SettingsRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val http by lazy { OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build() }
+    // The update check talks to GitHub over https, but the client carries the same cleartext rule as the rest of the
+    // app: a plain http address is refused before anything is sent, wherever it points.
+    private val http by lazy {
+        OkHttpClient.Builder()
+            .callTimeout(20, TimeUnit.SECONDS)
+            .addNetworkInterceptor(LocalOnlyCleartext())
+            .build()
+    }
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state
     private var job: Job? = null

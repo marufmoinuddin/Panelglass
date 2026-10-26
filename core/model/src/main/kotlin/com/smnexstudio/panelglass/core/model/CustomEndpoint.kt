@@ -163,10 +163,16 @@ object CustomEndpoint {
             (a == 100 && b in 64..127)
 
     /**
-     * Whether an IPv6 literal is on the local network. A literal is never resolved, so no DNS happens here; an
-     * IPv4-mapped address is judged by its IPv4 bytes.
+     * Whether an IPv6 literal is on the local network.
+     *
+     * The literal is parsed, never resolved: no DNS happens here, and a name that looks like an address is not
+     * treated as one. Java turns a true `::ffff:a.b.c.d` into an [Inet4Address] of its own accord, so a mapped
+     * address is judged by its IPv4 bytes; anything else is judged by the IPv6 rules below, which are the only
+     * ranges that mean "this network": loopback, link-local and unique-local. Multicast is not one of them, and
+     * neither is a public address that merely ends in a private-looking one.
      */
     private fun ipv6Local(h: String): Boolean {
+        if (!isIpv6Literal(h)) return false
         val addr = runCatching { InetAddress.getByName(h) }.getOrNull() ?: return false
         return when (addr) {
             is Inet4Address -> ipv4Local(
@@ -176,34 +182,30 @@ object CustomEndpoint {
                 addr.address[3].toInt() and 0xFF,
             )
             is Inet6Address -> {
-                val bytes = addr.address
-                if (bytes.size == 16) {
-                    // ::1 and the other IPv4-mapped addresses (::ffff:a.b.c.d) come back as an IPv6 address whose
-                    // last four bytes are the IPv4 address.
-                    val mapped = bytes.takeLast(4)
-                    val isMapped = mapped.all { it == 0.toByte() } || bytes[10].toInt() == 0xFF.toInt() && bytes[11].toInt() == 0xFF.toInt()
-                    if (isMapped && mapped.any { it != 0.toByte() }) {
-                        return ipv4Local(
-                            mapped[0].toInt() and 0xFF,
-                            mapped[1].toInt() and 0xFF,
-                            mapped[2].toInt() and 0xFF,
-                            mapped[3].toInt() and 0xFF,
-                        )
-                    }
-                    // Loopback: ::1.
-                    if (bytes.dropLast(1).all { it == 0.toByte() } && bytes[15] == 1.toByte()) return true
-                    // Link-local (fe80::/10).
-                    if ((bytes[0].toInt() and 0xFE) == 0xFE) return true
-                    // Site-local (fec0::/10).
-                    if ((bytes[0].toInt() and 0xFF) == 0xFE && (bytes[1].toInt() and 0xC0) == 0xC0) return true
-                    // Unique local (fc00::/7).
-                    if ((bytes[0].toInt() and 0xFE) == 0xFC) return true
-                    false
-                } else {
-                    addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress
-                }
+                val b = addr.address
+                if (b.size != 16) return false
+                // Loopback: ::1.
+                if (b.take(15).all { it == 0.toByte() } && b[15] == 1.toByte()) return true
+                // Link-local: fe80::/10.
+                if ((b[0].toInt() and 0xFF) == 0xFE && (b[1].toInt() and 0xC0) == 0x80) return true
+                // Unique local: fc00::/7.
+                if ((b[0].toInt() and 0xFE) == 0xFC) return true
+                false
             }
-            else -> addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress
+            else -> false
         }
+    }
+
+    /**
+     * Whether [h] is an IPv6 literal at all: only hex digits, colons, dots and an optional `%zone`.
+     *
+     * A name is not an address, so it is never parsed as one — `InetAddress.getByName` would look it up, and a
+     * lookup is a network call the address check must not make.
+     */
+    private fun isIpv6Literal(h: String): Boolean {
+        val zone = h.substringBefore('%', missingDelimiterValue = "")
+        val body = if (h.contains('%')) zone else h
+        if (body.isEmpty() || h.count { it == '%' } > 1) return false
+        return body.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' || it == '.' }
     }
 }

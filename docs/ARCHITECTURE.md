@@ -155,9 +155,17 @@ the picker and refused by the registry.
   server at home usually has none, and then no `Authorization` header is sent at all.
 
 - **Where cleartext is stopped.** The platform permits cleartext (`network_security_config.xml`) so that a server at
-  home can be reached; the code enforces the rule at three points: `CustomEndpoint` (what the engine may call),
-  `LocalOnlyCleartext` — a network interceptor on the shared `OkHttpClient`, so a redirect to `http` is refused too,
-  before any request data is sent — and the browser's `WebViewClient`, which refuses every plain `http` request.
+  home can be reached; the code enforces the rule at four points: `CustomEndpoint` (what the engine may call),
+  `LocalOnlyCleartext` — a network interceptor on the shared `OkHttpClient` **and on the update check's own client**,
+  so a redirect to `http` is refused too, before any request data is sent — the browser's `WebViewClient`, which
+  refuses every plain `http` request, main frame and subresource alike — and `SystemDownloads`, which queues only
+  `https` addresses, because `DownloadManager` follows redirects on its own and no interceptor of ours sees them.
+
+- **What "local" means, exactly.** Loopback, the private IPv4 ranges, link-local, CGNAT/Tailscale, IPv6 loopback
+  (`::1`), IPv6 link-local (`fe80::/10`) and IPv6 unique-local (`fc00::/7`). Nothing else: a public IPv6 address
+  whose last bytes look private (`2606:4700::ffff:c0a8:1`) is **not** local, multicast is not local, and the
+  deprecated site-local range `fec0::/10` is not local either. The address is read as a literal, never resolved, so
+  a name is never looked up to decide this.
 
 - **Retries.** Only transient failures are retried, on the same engine and model (`EngineRetry`): rate limits up to
   3 times, overload (HTTP 500/502/503/504/529) up to 2 times, back-off capped at 4 s.

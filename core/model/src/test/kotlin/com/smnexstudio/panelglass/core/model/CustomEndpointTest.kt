@@ -117,6 +117,46 @@ class CustomEndpointTest {
     }
 
     @Test
+    fun anIpv6AddressThatOnlyLooksLocalIsNotLocal() {
+        // A public address whose last bytes look like a private one: 2606:4700::ffff:c0a8:1 carries 192.168.0.1
+        // in its last four bytes, and used to be judged local — so plain http to it was allowed.
+        for (h in listOf(
+            "2606:4700::ffff:c0a8:1",
+            "2606:4700:4700::ffff:a00:1",
+            "::ffff:8.8.8.8",
+            "fec0::1",
+            "ff02::1",
+            "2001:db8::1",
+            "2606:4700::1111",
+            "1:2:3",
+            "zz::1",
+        )) {
+            assertFalse(CustomEndpoint.isLocalHost(h), "$h should not be local")
+        }
+    }
+
+    @Test
+    fun theLocalIpv6AddressesAreLocal() {
+        for (h in listOf(
+            "::ffff:192.168.0.5",
+            "::1",
+            "[::1]",
+            "fe80::1",
+            "febf::1",
+            "fc00::1",
+            "fd12:3456:789a::1",
+        )) {
+            assertTrue(CustomEndpoint.isLocalHost(h), "$h should be local")
+        }
+    }
+
+    @Test
+    fun plainHttpToAPublicIpv6AddressIsRefused() {
+        val p = bad("http://[2606:4700::ffff:c0a8:1]/v1")
+        assertEquals(CustomEndpoint.Problem.HTTP_NOT_LOCAL, p.problem)
+    }
+
+    @Test
     fun anyHttpsAddressIsUsable() {
         val p = ok("https://anything.example.com")
         assertTrue(p.https)

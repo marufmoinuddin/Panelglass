@@ -329,7 +329,9 @@ signed with a different key from the published releases, so uninstall one before
 - **https only**: the browser sends nothing in clear text. An `http://` address or link is opened as `https://`, and a
   site that only serves plain http will not load. The one exception is **Custom AI** pointed at a server on your own
   network: `http://192.168.0.15:8910/v1` is allowed there, and refused to any host that is not on your network.
-  The API key for that server is optional.
+  The API key for that server is optional. "Your own network" means loopback, the private address ranges and
+  IPv6 `::1`, `fe80::/10` and `fc00::/7` — a public address that merely looks like a private one is not local, and
+  plain http to it is refused. The update check and the model downloads follow the same rule.
 - **Links from other apps** open in the reader but are never translated automatically, even with
   translate-on-open on: you tap Start yourself.
 - **Logs** contain timings and failure types only: no keys, page URLs or page text.
