@@ -337,6 +337,10 @@ signed with a different key from the published releases, so uninstall one before
   The API key for that server is optional. "Your own network" means loopback, the private address ranges and
   IPv6 `::1`, `fe80::/10` and `fc00::/7` — a public address that merely looks like a private one is not local, and
   plain http to it is refused. The update check and the model downloads follow the same rule.
+- **Translations are not thrown away when you scroll.** A finished translation is kept on disk, so scrolling far
+  down and back brings it back with no detector, no OCR and no AI call — and no bill. **Settings › Translation
+  memory** controls how many screens are kept in memory, how long the saved ones live, and how much disk they may
+  take.
 - **Links from other apps** open in the reader but are never translated automatically, even with
   translate-on-open on: you tap Start yourself.
 - **Logs** contain timings and failure types only: no keys, page URLs or page text.
