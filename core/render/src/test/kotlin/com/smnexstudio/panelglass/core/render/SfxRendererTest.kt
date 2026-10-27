@@ -27,7 +27,7 @@ class SfxRendererTest {
     private val renderer = StudioRenderer()
     private val wide = listOf(Pt(100f, 100f), Pt(300f, 100f), Pt(300f, 160f), Pt(100f, 160f))
     private fun page() = Bitmap.createBitmap(400, 320, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.rgb(200, 180, 160)) }
-    private fun sfx(poly: List<Pt> = wide, mode: SfxEditMode = SfxEditMode.OVERLAY): Bubble {
+    private fun sfx(poly: List<Pt> = wide, mode: SfxEditMode = SfxEditMode.REPLACE): Bubble {
         val b = Bubble(id = 1, pageId = 1, order = 0, kind = RegionKind.SFX, polygon = poly, sourceText = "ドン", translatedText = "boom")
         return b.copy(sfx = SfxRenderer.initial(b, mode))
     }
@@ -73,14 +73,6 @@ class SfxRendererTest {
         val angle = Math.toDegrees(atan2((f[1].y - f[0].y).toDouble(), (f[1].x - f[0].x).toDouble()))
         assertEquals(30.0, angle, 0.5)
         assertEquals(200f, (f[0].x + f[2].x) / 2f, 0.5f)
-    }
-
-    @Test fun glossDrawsBesideTheEffectNotOnIt() {
-        val clean = page()
-        val drawn = changed(clean, renderer.render(clean, listOf(sfx(mode = SfxEditMode.GLOSS)), Lang.EN))
-        assertTrue(drawn.isNotEmpty())
-        assertTrue("below the box", drawn.all { it.second >= 155 })
-        assertNull(SfxRenderer.frame(sfx(mode = SfxEditMode.GLOSS), Lang.EN))
     }
 
     @Test fun presetsSetTheLookAndKeepThePlace() {

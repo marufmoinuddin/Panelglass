@@ -35,7 +35,8 @@ abstract class LlmEngine(
     /** Provider host used for the pre-warm TLS handshake. */
     protected abstract val warmUrl: String
 
-    protected abstract suspend fun complete(apiKey: String, system: String, turns: List<Turn>): String
+    /** One call. [maxOutputTokens] caps the reply ([LlmContract.outputBudget]): the provider bills what it writes. */
+    protected abstract suspend fun complete(apiKey: String, system: String, turns: List<Turn>, maxOutputTokens: Int): String
 
     override suspend fun translate(req: TranslateRequest): List<TranslatedItem> {
         if (req.items.isEmpty()) return emptyList()
@@ -44,14 +45,15 @@ abstract class LlmEngine(
         val montage = if (acceptsImages) req.sfxMontage else null
         val crops = if (acceptsImages) req.readImages.entries.sortedBy { it.key }.map { "Item ${it.key}" to it.value } else emptyList()
         val turns = mutableListOf(Turn("user", LlmContract.userPayload(req.items, req.readImages.keys), montage, crops))
-        val first = complete(key, system, turns)
+        val budget = LlmContract.outputBudget(req.items.size)
+        val first = complete(key, system, turns, budget)
         return try {
             LlmContract.parse(id, first, req.items)
         } catch (e: EngineException) {
             if (e.failure !is EngineFailure.Malformed) throw e
             turns += Turn("assistant", first)
             turns += Turn("user", LlmContract.repairPrompt())
-            LlmContract.parse(id, complete(key, system, turns), req.items)
+            LlmContract.parse(id, complete(key, system, turns, budget), req.items)
         }
     }
 

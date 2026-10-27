@@ -26,6 +26,7 @@ import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.IntRect
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.Manga
+import com.smnexstudio.panelglass.core.model.ReadState
 import com.smnexstudio.panelglass.core.model.RegionKind
 import com.smnexstudio.panelglass.core.model.StudioPage
 import com.smnexstudio.panelglass.core.model.StudioStage
@@ -292,8 +293,8 @@ class StudioTranslatorTest {
             readFlags += read
             return listOf("a", "b").mapIndexed { i, s ->
                 val box = IntRect(10, 10 + i * 60, 90, 60 + i * 60)
-                val text = if (read) "$n-$s" else TextLine.UNREAD
-                TextRegion(bbox = box, kind = RegionKind.ENCLOSED, text = text, lines = listOf(TextLine(box, text)))
+                if (!read) TextRegion.unread(box, RegionKind.ENCLOSED).copy(container = null)
+                else TextRegion(bbox = box, kind = RegionKind.ENCLOSED, text = "$n-$s", lines = listOf(TextLine(box, "$n-$s")))
             }
         }
 
@@ -307,8 +308,8 @@ class StudioTranslatorTest {
 
         override suspend fun read(bitmap: Bitmap, rect: IntRect, cfg: TranslateConfig, kind: RegionKind): TextRegion {
             log += "read ${name(bitmap)}"
-            val text = if (cfg.engineId.readsCrops) TextLine.UNREAD else "boxed"
-            return TextRegion(bbox = rect, kind = kind, text = text, lines = listOf(TextLine(rect, text)), container = rect)
+            if (cfg.engineId.readsCrops) return TextRegion.unread(rect, kind)
+            return TextRegion(bbox = rect, kind = kind, text = "boxed", lines = listOf(TextLine(rect, "boxed")), container = rect)
         }
 
         override suspend fun translate(bitmap: Bitmap, regions: List<TextRegion>, cfg: TranslateConfig, prior: List<ContextPair>): TranslationPipeline.StudioTranslation {
@@ -316,7 +317,7 @@ class StudioTranslatorTest {
             log += "translate $n"
             priors += prior
             failOn[n]?.let { throw EngineException(it) }
-            val read = regions.mapIndexed { i, r -> if (r.unread) r.copy(text = "read $n-$i") else r }
+            val read = regions.mapIndexed { i, r -> if (r.unread) r.copy(text = "read $n-$i", state = ReadState.READ) else r }
             val out = read.map { "EN:" + it.text }
             return TranslationPipeline.StudioTranslation(read, out, read.zip(out) { r, t -> ContextPair(r.text, t) }.takeLast(2))
         }

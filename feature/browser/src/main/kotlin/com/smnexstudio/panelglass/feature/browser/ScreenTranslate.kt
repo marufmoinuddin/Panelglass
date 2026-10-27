@@ -168,15 +168,36 @@ fun ScreenOverlayLayer(state: ScreenSession, scroll: Pair<Int, Int>, zoom: Float
                 )
             }
         }
-        StatusDisc(state, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp))
+        StatusDisc(state, Modifier.align(Alignment.TopEnd).padding(top = StatusDiscSpec.PAD_DP.dp, end = StatusDiscSpec.PAD_DP.dp))
     }
 }
 
 /** 28 dp disc: spinner while a viewport is being translated, a check when it is done, a warning after a failure. */
 @Composable
-private fun StatusDisc(state: ScreenSession, modifier: Modifier) {
+private fun StatusDisc(state: ScreenSession, modifier: Modifier) = StatusDiscContent(state, modifier)
+
+/**
+ * Where the status disc sits over the page (top-right). Viewport snapshots include it, so a capture leaves that
+ * corner out of its region of interest ([rectIn]): ML Kit read the yellow ✓ as ソ, and "So" was lettered under it.
+ */
+internal object StatusDiscSpec {
+    const val SIZE_DP = 28
+    const val PAD_DP = 8
+
+    /** The disc in a viewport bitmap [width] pixels wide at [density], with a margin for its shadow. */
+    fun rectIn(width: Int, density: Float): com.smnexstudio.panelglass.core.model.IntRect {
+        val margin = (4 * density).toInt()
+        val right = width - (PAD_DP * density).toInt() + margin
+        val size = (SIZE_DP * density).toInt()
+        val top = (PAD_DP * density).toInt() - margin
+        return com.smnexstudio.panelglass.core.model.IntRect(right - size - 2 * margin, maxOf(0, top), minOf(width, right), top + size + 2 * margin)
+    }
+}
+
+@Composable
+private fun StatusDiscContent(state: ScreenSession, modifier: Modifier) {
     Box(
-        modifier.size(28.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), CircleShape),
+        modifier.size(StatusDiscSpec.SIZE_DP.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -187,6 +208,11 @@ private fun StatusDisc(state: ScreenSession, modifier: Modifier) {
     }
 }
 
-/** WEBP → ImageBitmap, meant for a worker thread. */
-fun decodePatch(p: Patch): ImageBitmap? =
-    runCatching { BitmapFactory.decodeByteArray(p.webp, 0, p.webp.size)?.asImageBitmap() }.getOrNull()
+/**
+ * The patch as an ImageBitmap: its rendered pixels as they are, or its WEBP decoded (a patch from the cache). Meant
+ * for a worker thread.
+ */
+fun decodePatch(p: Patch): ImageBitmap? {
+    (p.image as? Bitmap)?.let { return it.asImageBitmap() }
+    return runCatching { BitmapFactory.decodeByteArray(p.webp, 0, p.webp.size)?.asImageBitmap() }.getOrNull()
+}

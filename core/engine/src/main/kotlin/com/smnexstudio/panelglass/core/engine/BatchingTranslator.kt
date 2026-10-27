@@ -45,6 +45,11 @@ class TranslateJob(
     val regions: List<TextRegion>,
     val crops: Map<Int, Bitmap> = emptyMap(),
     val priorContext: List<ContextPair> = emptyList(),
+    /**
+     * Send without waiting [BatchingTranslator.WINDOW_MS] for other images to share the call: someone is watching this
+     * one (the reader's viewport, a Studio page), and nothing else is coming to join it.
+     */
+    val immediate: Boolean = false,
 )
 
 /** A region's translation, and what the engine read when the region was [TextRegion.unread]. */
@@ -71,6 +76,8 @@ class BatchingTranslator @Inject constructor(
         val item: RegionItem, val crop: Bitmap?, val src: Lang, val tgt: Lang, val glossary: Map<String, String>, val context: List<ContextPair>,
         /** The engine reads [crop] itself; [item] has no text. */
         val read: Boolean = false,
+        /** The user's notes for this series ([TranslateConfig.notes]); items with other notes never share a call. */
+        val notes: String = "",
     ) {
         val result = CompletableDeferred<Reading>()
         /** Set when the caller stopped waiting; the batch it was flushed into is cancelled once every member is. */
@@ -88,7 +95,10 @@ class BatchingTranslator @Inject constructor(
         var flushJob: Job? = null
     }
 
-    private val lanes = HashMap<String, Lane>()
+    /** Lanes are keyed by the full notes, not a hash of them: two series must never share a call. */
+    private data class LaneKey(val engineId: EngineId, val src: Lang, val tgt: Lang, val notes: String)
+
+    private val lanes = HashMap<LaneKey, Lane>()
     private val lock = Mutex()
 
     /** Returns one translated string per region; null means "leave this region alone". */
@@ -105,11 +115,12 @@ class BatchingTranslator @Inject constructor(
         val cached = sfxCache.lookup(sfxKeys.map { SfxCacheEntry.keyOf(it.second, cfg.src, cfg.tgt) }.toSet())
         val local = HashMap<String, Pending>()
         for ((i, region) in job.regions.withIndex()) {
-            if (region.text.isBlank()) continue
+            // Nothing could read an unreadable region: it is erased, never sent.
+            if (region.text.isBlank() || region.unreadable) continue
             if (region.unread) {
                 // Nothing to look up or de-duplicate: every unread region has the same placeholder text.
                 val crop = job.crops[i] ?: continue
-                pending += i to Pending(RegionItem(0, job.imageId, region.kind, ""), crop, cfg.src, cfg.tgt, cfg.glossary, job.priorContext, read = true)
+                pending += i to Pending(RegionItem(0, job.imageId, region.kind, ""), crop, cfg.src, cfg.tgt, cfg.glossary, job.priorContext, read = true, notes = cfg.notes)
                 continue
             }
             if (region.kind == RegionKind.SFX) {
@@ -120,14 +131,14 @@ class BatchingTranslator @Inject constructor(
             }
             val dedupeKey = region.kind.name + "|" + (if (region.kind == RegionKind.SFX) TextNorm.sfxKey(region.text) else region.text.trim())
             val p = local.getOrPut(dedupeKey) {
-                Pending(RegionItem(0, job.imageId, region.kind, region.text.trim()), job.crops[i], cfg.src, cfg.tgt, cfg.glossary, job.priorContext)
+                Pending(RegionItem(0, job.imageId, region.kind, region.text.trim()), job.crops[i], cfg.src, cfg.tgt, cfg.glossary, job.priorContext, notes = cfg.notes)
             }
             pending += i to p
         }
         if (pending.isEmpty()) return out.toList()
 
         val mine = pending.map { it.second }.distinct()
-        enqueue(cfg.engineId, mine)
+        enqueue(cfg.engineId, mine, job.immediate)
         try {
             for ((i, p) in pending) out[i] = p.result.await()
         } catch (e: CancellationException) {
@@ -147,25 +158,33 @@ class BatchingTranslator @Inject constructor(
         return out.toList()
     }
 
-    private suspend fun enqueue(engineId: EngineId, items: List<Pending>) {
-        val first = items.first()
-        val laneKey = engineId.name + "|" + first.src.code + "|" + first.tgt.code
+    /** One lane per engine, language pair and notes: a call carries one set of notes. */
+    private fun laneKey(engineId: EngineId, first: Pending) = LaneKey(engineId, first.src, first.tgt, first.notes)
+
+    private suspend fun enqueue(engineId: EngineId, items: List<Pending>, immediate: Boolean) {
+        val laneKey = laneKey(engineId, items.first())
         lock.withLock {
             val lane = lanes.getOrPut(laneKey) { Lane(engineId) }
             lane.items += items
             val images = lane.items.map { it.item.imageId }.toSet().size
-            if (lane.items.size >= MAX_ITEMS || images >= imagesPerCall(engineId)) {
-                flushLocked(laneKey, lane)
-            } else if (lane.flushJob == null) {
-                lane.flushJob = scope.launch {
-                    delay(WINDOW_MS)
-                    lock.withLock { lanes[laneKey]?.let { if (it.items.isNotEmpty()) flushLocked(laneKey, it) } }
+            // A call carries at most MAX_ITEMS: everything that must go now goes in as many calls as it takes. Before,
+            // one call went and the rest waited for a timer that had just been cancelled (a page of over 60 regions
+            // hung until the watchdog).
+            if (immediate || images >= imagesPerCall(engineId)) {
+                while (lane.items.isNotEmpty()) flushLocked(laneKey, lane)
+            } else {
+                while (lane.items.size >= MAX_ITEMS) flushLocked(laneKey, lane)
+                if (lane.items.isNotEmpty() && lane.flushJob == null) {
+                    lane.flushJob = scope.launch {
+                        delay(WINDOW_MS)
+                        lock.withLock { lanes[laneKey]?.let { while (it.items.isNotEmpty()) flushLocked(laneKey, it) } }
+                    }
                 }
             }
         }
     }
 
-    private fun flushLocked(laneKey: String, lane: Lane) {
+    private fun flushLocked(laneKey: LaneKey, lane: Lane) {
         val members = ArrayList(lane.items.take(MAX_ITEMS))
         lane.items.subList(0, members.size).clear()
         lane.flushJob?.cancel(); lane.flushJob = null
@@ -177,8 +196,7 @@ class BatchingTranslator @Inject constructor(
 
     /** The caller went away: unsent items leave the lane, and a running batch with no waiter left is cancelled. */
     private suspend fun withdraw(engineId: EngineId, items: List<Pending>) {
-        val first = items.first()
-        val laneKey = engineId.name + "|" + first.src.code + "|" + first.tgt.code
+        val laneKey = laneKey(engineId, items.first())
         lock.withLock {
             lanes[laneKey]?.let { lane ->
                 lane.items.removeAll(items.toSet())
@@ -198,7 +216,7 @@ class BatchingTranslator @Inject constructor(
         val items = batch.mapIndexed { idx, p -> p.item.copy(i = idx) }
         val src = batch.first().src; val tgt = batch.first().tgt
         val glossary = HashMap<String, String>().apply { batch.forEach { putAll(it.glossary) } }
-        val context = batch.flatMap { it.context }.distinct().takeLast(2)
+        val context = batch.flatMap { it.context }.distinct().takeLast(PromptParts.CONTEXT_LINES)
         val engine = when (val r = registry.resolve(engineId)) {
             is EngineResolution.Ready -> r.engine
             is EngineResolution.Failed -> { batch.forEach { it.result.completeExceptionally(EngineException(r.failure)) }; return }
@@ -213,7 +231,7 @@ class BatchingTranslator @Inject constructor(
                 montageIdx = crops.map { it.index }
             }
         }
-        val req = TranslateRequest(items, src, tgt, glossary, context, montage, montageIdx, readImages)
+        val req = TranslateRequest(items, src, tgt, glossary, context, montage, montageIdx, readImages, batch.first().notes)
 
         var attempt = 0
         while (true) {

@@ -10,6 +10,7 @@ import com.smnexstudio.panelglass.core.model.Chapter
 import com.smnexstudio.panelglass.core.model.GlossaryEntry
 import com.smnexstudio.panelglass.core.model.HistoryEntry
 import com.smnexstudio.panelglass.core.model.Manga
+import com.smnexstudio.panelglass.core.model.SeriesNotes
 import com.smnexstudio.panelglass.core.model.SfxCacheEntry
 import com.smnexstudio.panelglass.core.model.Site
 import com.smnexstudio.panelglass.core.model.StudioPage
@@ -18,9 +19,9 @@ import com.smnexstudio.panelglass.core.model.UserFont
 @Database(
     entities = [
         Site::class, SfxCacheEntry::class, GlossaryEntry::class, HistoryEntry::class,
-        Manga::class, Chapter::class, StudioPage::class, Bubble::class, UserFont::class,
+        Manga::class, Chapter::class, StudioPage::class, Bubble::class, UserFont::class, SeriesNotes::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(StudioConverters::class)
@@ -28,13 +29,14 @@ abstract class PanelglassDb : RoomDatabase() {
     abstract fun sites(): SiteDao
     abstract fun sfxCache(): SfxCacheDao
     abstract fun glossary(): GlossaryDao
+    abstract fun seriesNotes(): SeriesNotesDao
     abstract fun history(): HistoryDao
     abstract fun studio(): StudioDao
     abstract fun userFonts(): UserFontDao
 
     companion object {
         /** Every migration, in order. A version without a path here is rebuilt empty (`fallbackToDestructiveMigration`). */
-        val MIGRATIONS: Array<Migration> get() = arrayOf(MIGRATION_3_4)
+        val MIGRATIONS: Array<Migration> get() = arrayOf(MIGRATION_3_4, MIGRATION_4_5)
     }
 }
 
@@ -55,5 +57,13 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `studio_bubble` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `pageId` INTEGER NOT NULL, `order` INTEGER NOT NULL, `kind` TEXT NOT NULL, `polygon` TEXT NOT NULL, `sourceText` TEXT NOT NULL, `translatedText` TEXT NOT NULL, `style` TEXT NOT NULL, `region` TEXT, `sfx` TEXT, `ignored` INTEGER NOT NULL, FOREIGN KEY(`pageId`) REFERENCES `studio_page`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )")
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_studio_bubble_pageId` ON `studio_bubble` (`pageId`)")
         db.execSQL("CREATE TABLE IF NOT EXISTS `user_font` (`id` TEXT NOT NULL, `displayName` TEXT NOT NULL, `family` TEXT NOT NULL, `files` TEXT NOT NULL, `scripts` TEXT NOT NULL, `role` TEXT NOT NULL, `tags` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+    }
+}
+
+/** 4 → 5: a glossary entry may carry a character's pronoun; a series keeps the user's notes for the AI engines. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `glossary` ADD COLUMN `pronoun` TEXT")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `series_notes` (`seriesKey` TEXT NOT NULL, `notes` TEXT NOT NULL, PRIMARY KEY(`seriesKey`))")
     }
 }

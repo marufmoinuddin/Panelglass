@@ -5,9 +5,9 @@ import ai.onnxruntime.OrtSession
 /**
  * Session options shared by the on-device ONNX models (the detector and manga-ocr): CPU, all graph optimisations.
  *
- * XNNPACK is available in this ORT (`addXnnpack`) but off: on the x86_64 emulator it was slower for both models
- * (detector 314 -> 384-489 ms, manga-ocr decoder step 20 -> 37-51 ms). Its case is ARM; switch it on only after
- * [OrtBench] shows a win on a phone.
+ * XNNPACK is available in this ORT (`addXnnpack`) but off: it was slower for both models on the x86_64 emulator
+ * (detector 314 -> 384-489 ms, manga-ocr decoder step 20 -> 37-51 ms) and on an ARM phone too ([OrtBench], Motorola
+ * Edge 60 Pro, 2026-10-17: detector 314 -> 498-547 ms, manga-ocr encoder 46 -> 112-124 ms).
  */
 internal object OrtCpu {
     /** Leave a core for the UI thread; past four the models stop scaling on phone big.LITTLE clusters. */

@@ -5,8 +5,11 @@ import com.smnexstudio.panelglass.core.model.RegionKind
 import com.smnexstudio.panelglass.core.model.TextLine
 import com.smnexstudio.panelglass.core.model.TextRegion
 
-/** A region plus what the container model said about it; null when only proximity grouped it. */
-class BuiltRegion(val region: TextRegion, val seed: BoxKind?)
+/**
+ * A region plus what the container model said about it; [seed] is null when only proximity grouped it or the box was
+ * free text. [boxed]: built from a detector box (either pass), not only from loose full-page lines.
+ */
+class BuiltRegion(val region: TextRegion, val seed: BoxKind?, val boxed: Boolean = false)
 
 /**
  * Regions from a [PageDetection]. Lines inside the same detector box are one translation unit — a
@@ -44,7 +47,7 @@ class RegionBuilder(private val clusterer: RegionClusterer = RegionClusterer()) 
             // The balloon the text sits in is where the translation may spread out; the text box stays the erase area.
             val balloon = if (seed == null) null else balloons.firstOrNull { it.bbox.contains(box.bbox.centerX.toInt(), box.bbox.centerY.toInt()) }?.bbox
                 ?: box.bbox.takeIf { box.kind == BoxKind.BUBBLE }
-            out += BuiltRegion(built.copy(container = balloon), seed)
+            out += BuiltRegion(built.copy(container = balloon), seed, boxed = true)
         }
         for (r in clusterer.cluster(loose, lang)) out += BuiltRegion(r, null)
         return out

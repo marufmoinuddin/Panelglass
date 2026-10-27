@@ -30,6 +30,20 @@ class RegionBuilderTest {
         assertEquals(IntRect(100, 100, 330, 260), out[0].region.bbox)
     }
 
+    /**
+     * A one-letter sound effect a detector boxed is kept (boxed); a one-letter line only the full-page pass saw is not
+     * (the pipeline drops it: the app's own ✓ badge was read as ソ and lettered "So").
+     */
+    @Test
+    fun regionsKnowWhetherADetectorBoxedThem() {
+        val sfx = TextLine(IntRect(100, 100, 160, 160), "ド")
+        val stray = TextLine(IntRect(900, 20, 930, 50), "ソ")
+        val box = TextBox(IntRect(90, 90, 170, 170), BoxKind.TEXT_FREE, 0.8f)
+        val out = builder.build(PageDetection(listOf(sfx, stray), listOf(box)), Lang.JA)
+        assertEquals(true, out.single { it.region.text == "ド" }.boxed)
+        assertEquals(false, out.single { it.region.text == "ソ" }.boxed)
+    }
+
     @Test
     fun textBoxesClaimLinesBeforeTheBalloonAroundThem() {
         val inner = TextLine(IntRect(120, 120, 180, 140), "Hi")

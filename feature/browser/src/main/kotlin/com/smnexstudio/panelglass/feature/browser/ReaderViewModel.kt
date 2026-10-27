@@ -35,6 +35,11 @@ import com.smnexstudio.panelglass.feature.browser.block.BlockListRepository
 import com.smnexstudio.panelglass.feature.browser.web.MangaWebViewClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.smnexstudio.panelglass.core.data.repo.GlossaryRepository
+import com.smnexstudio.panelglass.core.model.GlossaryEntry
+import kotlinx.coroutines.joinAll
+import org.json.JSONObject
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -176,13 +181,38 @@ class ReaderViewModel @Inject constructor(
     private val blockLists: BlockListRepository,
     private val history: HistoryRepository,
     private val registry: EngineRegistry,
-    pageTranslator: PageTranslator,
+    private val pageTranslator: PageTranslator,
     private val packs: LanguagePackStore,
     val warmup: ReaderWarmup,
+    private val glossary: GlossaryRepository,
 ) : ViewModel(), MangaWebViewClient.Listener {
 
     private val _ui = MutableStateFlow(ReaderUiState())
     val ui: StateFlow<ReaderUiState> = _ui
+
+    // ---- the series' names, pronouns and notes (⋮ › Glossary & pronouns) ------------------------------------
+
+    private val series = SeriesMemory(
+        glossary, viewModelScope,
+        seriesKey = _ui.map { it.config?.seriesKey.orEmpty() },
+        keyNow = { _ui.value.config?.seriesKey.orEmpty() },
+    )
+    val seriesTerms: StateFlow<List<GlossaryEntry>> get() = series.terms
+    val seriesNotes: StateFlow<String> get() = series.notes
+
+    fun saveTerm(entry: GlossaryEntry) = series.saveTerm(entry)
+    fun deleteTerm(entry: GlossaryEntry) = series.deleteTerm(entry)
+    fun saveSeriesNotes(text: String) = series.saveNotes(text)
+
+    /** The sheet closed: a running screen session translates the viewport again with what was edited. */
+    fun seriesSheetClosed() {
+        val writes = series.takeWrites()
+        if (writes.isEmpty()) return
+        if (_screen.value.active) viewModelScope.launch {
+            writes.joinAll()
+            clearScreenPatches(); translateViewport()
+        }
+    }
 
     private var web: WebView? = null
 
@@ -294,7 +324,9 @@ class ReaderViewModel @Inject constructor(
             // Bubbles an earlier capture already patched (at any zoom) are not read or translated again (the slow
             // part of a scroll).
             val done = _screen.value.patches.map { it.rectAt(c.scale).offset(-c.scrollX, -c.scrollY) }
-            val roi = RegionOfInterest(include = c.images, exclude = c.overlays, done = done)
+            // The app's own status disc is in the snapshot too: never read it as page text.
+            val disc = StatusDiscSpec.rectIn(w, context.resources.displayMetrics.density)
+            val roi = RegionOfInterest(include = c.images, exclude = c.overlays + disc, done = done)
             val bypass = bypassCacheOnce; bypassCacheOnce = false
             try {
                 val result = pipeline.translate(ImageSource.Native(c.bitmap), cfg, imageId = "screen", roi = roi, bypassCache = bypass) { patch ->
@@ -470,17 +502,39 @@ class ReaderViewModel @Inject constructor(
     val autoStart: StateFlow<Boolean> = _autoStart
     fun consumeAutoStart() { _autoStart.value = false }
 
-    /** Languages from the launch intent (`src`/`tgt` extras): this reader session only, never saved to the site or Settings. */
-    private var langOverride: Pair<Lang?, Lang?> = null to null
+    private val languages = SessionLanguages()
 
+    /** Languages from the launch intent (`src`/`tgt` extras): this reader session only, never saved to the site or Settings. */
     fun overrideLanguages(src: Lang?, tgt: Lang?, start: Boolean) {
-        langOverride = src to tgt
-        _ui.update { s -> s.copy(config = s.config?.let(::withOverride)) }
+        languages.override(src, tgt)
+        _ui.update { s -> s.copy(config = s.config?.let { withOverride(it, s.site) }) }
         if (start) _autoStart.value = true
     }
 
-    private fun withOverride(cfg: TranslateConfig): TranslateConfig =
-        cfg.copy(src = langOverride.first ?: cfg.src, tgt = langOverride.second ?: cfg.tgt)
+    private fun withOverride(cfg: TranslateConfig, site: Site?): TranslateConfig = languages.apply(cfg, site, _ui.value.url)
+
+    /**
+     * After a page loads: ML Kit's language identification on its visible text (and `<html lang>`). A page in another
+     * of the comic source languages than the one configured switches this session to it, unless the site or the
+     * launch intent set the source; the bar's "KO → EN" shows it. The screen is translated again if it was on.
+     */
+    private fun detectPageLanguage(url: String) {
+        if (languages.sourceOverridden) return
+        viewModelScope.launch {
+            val sample = evalInPage("window.__pt ? __pt.sample() : null")?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return@launch
+            val tag = pageTranslator.detect(sample.optString("text"), sample.optString("lang").ifEmpty { null }) ?: return@launch
+            val cfg = _ui.value.config ?: return@launch
+            val lang = SessionLanguages.sourceFor(tag, cfg.src) ?: return@launch
+            if (_ui.value.url != url || _ui.value.site?.sourceLang != null) return@launch
+            languages.pageIs(url, lang)
+            if (lang == cfg.src) return@launch
+            android.util.Log.i("ReaderViewModel", "page language ${lang.name}: source ${cfg.src.name} -> ${lang.name} for this session")
+            val next = cfg.copy(src = lang)
+            _ui.update { it.copy(config = next) }
+            prewarm(next)
+            if (_screen.value.active) { clearScreenPatches(); translateViewport() }
+        }
+    }
 
     /** Re-translate what is on screen: fresh OCR and a fresh engine call (the patch cache is skipped), same engine or a new one. */
     fun retranslateScreen(capture: suspend () -> ViewportCapture?) {
@@ -546,7 +600,7 @@ class ReaderViewModel @Inject constructor(
     private suspend fun reloadConfig() {
         val url = _ui.value.url
         val (s, site) = withContext(Dispatchers.IO) { settingsRepo.current() to siteFor(url) }
-        val cfg = withOverride(s.resolve(site).copy(seriesKey = Site.seriesKeyOf(url)))
+        val cfg = withOverride(s.resolve(site).copy(seriesKey = Site.seriesKeyFor(site, url)), site)
         val old = _ui.value.config
         _ui.update { it.copy(site = site, config = cfg) }
         if (old == null || old == cfg) return
@@ -584,7 +638,7 @@ class ReaderViewModel @Inject constructor(
             val (s, site) = withContext(Dispatchers.IO) { settingsRepo.current() to siteFor(initialUrl) }
             val adBlock = site?.adBlockEnabled ?: s.adBlockDefault
             client.adBlockEnabled = adBlock
-            var cfg = withOverride(s.resolve(site).copy(seriesKey = Site.seriesKeyOf(initialUrl)))
+            var cfg = withOverride(s.resolve(site).copy(seriesKey = Site.seriesKeyFor(site, initialUrl)), site)
             pendingEngine?.let { cfg = cfg.copy(engineId = it); pendingEngine = null }
             _ui.update { it.copy(site = site, adBlockEnabled = adBlock, config = cfg) }
             prewarm(cfg)
@@ -694,7 +748,7 @@ class ReaderViewModel @Inject constructor(
             client.adBlockEnabled = adBlock
             // Keep the session's engine: a page load must not undo a pick made in the reader.
             val engine = _ui.value.config?.engineId
-            var cfg = withOverride(s.resolve(site).copy(seriesKey = Site.seriesKeyOf(url)))
+            var cfg = withOverride(s.resolve(site).copy(seriesKey = Site.seriesKeyFor(site, url)), site)
             if (engine != null) cfg = cfg.copy(engineId = engine)
             _ui.update { it.copy(site = site, adBlockEnabled = adBlock, config = cfg) }
         }
@@ -704,6 +758,7 @@ class ReaderViewModel @Inject constructor(
         _ui.update { it.copy(title = title.orEmpty(), canGoBack = web?.canGoBack() == true, progress = 100) }
         viewModelScope.launch { history.record(url, title.orEmpty()) }
         pageText.onPageFinished()
+        detectPageLanguage(url)
         if (_screen.value.active) onScroll(_scroll.value.first, _scroll.value.second, _zoom.value)
     }
 

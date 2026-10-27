@@ -38,6 +38,11 @@ android {
     }
 
     buildTypes {
+        // Its own app next to the release build on one phone: own data, keys and model downloads. The launcher label
+        // comes from src/debug/res. The namespace (R, BuildConfig, class names) stays the same.
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

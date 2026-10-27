@@ -72,6 +72,8 @@ import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.Lang
 import com.smnexstudio.panelglass.core.model.ModelState
 import com.smnexstudio.panelglass.core.model.QwenBackend
+import com.smnexstudio.panelglass.core.model.TranslationNotes
+import com.smnexstudio.panelglass.core.model.SfxMode
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -132,6 +134,11 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
     var appLangPicker by remember { mutableStateOf(false) }
     var backendPicker by remember { mutableStateOf(false) }
     var packsSheet by remember { mutableStateOf(false) }
+    var notesDialog by remember { mutableStateOf(false) }
+    var sfxPicker by remember { mutableStateOf(false) }
+    val sfxNames = mapOf(
+        SfxMode.SKIP to stringResource(UiR.string.studio_sfx_keep), SfxMode.REPLACE to stringResource(UiR.string.studio_sfx_replace),
+    )
     val studioStorage by vm.studioStorage.collectAsStateWithLifecycle()
     var deletingManga by remember { mutableStateOf<MangaStorage?>(null) }
     LaunchedEffect(Unit) { vm.loadStudioStorage() }
@@ -168,6 +175,16 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
             }
             CardDivider()
             ValueRow(stringResource(UiR.string.settings_translation_model), s.engineId.uiName(), onClick = { enginePicker = true }) { SparkleIcon() }
+            CardDivider()
+            // How the reader treats sound effects: kept, glossed, drawn over, or erased and replaced.
+            ValueRow(stringResource(UiR.string.studio_role_sfx), sfxNames.getValue(s.sfxMode), onClick = { sfxPicker = true })
+            CardDivider()
+            // What the AI engines are told on every series; one series' names and pronouns are set in the reader.
+            ActionRow(
+                stringResource(UiR.string.settings_notes),
+                s.translationNotes.lineSequence().firstOrNull { it.isNotBlank() } ?: stringResource(UiR.string.settings_notes_empty),
+                stringResource(UiR.string.action_edit), onAction = { notesDialog = true },
+            )
         }
 
         // ---- try -------------------------------------------------------------------------------
@@ -287,7 +304,27 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
             ActionRow(stringResource(UiR.string.settings_history), stringResource(UiR.string.settings_history_clear), stringResource(UiR.string.action_clear), Tokens.Error, onAction = { vm.clearHistory() })
         }
         StudioStorage(studioStorage, onDelete = { deletingManga = it })
+
+        // ---- about: version and updates (GitHub Releases; the app-wide dialog shows what the check found) -----------
+        SectionLabel(stringResource(UiR.string.settings_about))
+        TokenCard(Modifier.padding(horizontal = 16.dp)) {
+            ActionRow(
+                stringResource(UiR.string.update_check), stringResource(UiR.string.update_version, vm.appVersion),
+                stringResource(UiR.string.update_check_action), onAction = { vm.checkForUpdates() },
+            )
+            CardDivider()
+            // Off: the app never contacts GitHub by itself; the check above still works.
+            ToggleCardRow(stringResource(UiR.string.update_auto), s.autoUpdateCheck, secondary = stringResource(UiR.string.update_auto_note)) {
+                vm.setAutoUpdateCheck(it)
+            }
+        }
     }
+
+    if (sfxPicker) ChoiceSheet(
+        stringResource(UiR.string.studio_role_sfx), SfxMode.entries, s.sfxMode,
+        render = { sfxNames.getValue(it) }, onPick = { vm.setSfxMode(it) }, onDismiss = { sfxPicker = false },
+    )
+    if (notesDialog) TranslationNotesDialog(s.translationNotes, onDismiss = { notesDialog = false }) { vm.setTranslationNotes(it); notesDialog = false }
 
     deletingManga?.let { m ->
         DeleteMangaDialog(m, onDismiss = { deletingManga = null }) { vm.deleteStudioManga(m.manga); deletingManga = null }
@@ -1029,6 +1066,37 @@ private fun DeleteMangaDialog(m: MangaStorage, onDismiss: () -> Unit, onConfirm:
             TextAction(stringResource(UiR.string.action_cancel), Tokens.InkSoft, onDismiss)
             Spacer(Modifier.width(8.dp))
             PrimaryPill(stringResource(UiR.string.action_delete).uppercase(), letterSpaced = true, onClick = onConfirm)
+        }
+    }
+}
+
+/** Settings' notes for the AI engines, on every series: tone, honorifics, how to treat pronouns. */
+@Composable
+private fun TranslationNotesDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var draft by remember(initial) { mutableStateOf(initial) }
+    StickerDialog(onDismiss) {
+        Text(stringResource(UiR.string.settings_notes), fontFamily = Jakarta, fontWeight = FontWeight.W800, fontSize = 20.sp, color = Tokens.Ink)
+        Spacer(Modifier.height(14.dp))
+        OutlinedTextField(
+            value = draft, onValueChange = { draft = it.take(TranslationNotes.MAX_CHARS) },
+            placeholder = { Text(stringResource(UiR.string.settings_notes_hint)) },
+            minLines = 3, maxLines = 8,
+            supportingText = { Text("${draft.length} / ${TranslationNotes.MAX_CHARS}") },
+            shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Tokens.Ink, unfocusedBorderColor = Tokens.Border, focusedTextColor = Tokens.Ink, unfocusedTextColor = Tokens.Ink,
+                cursorColor = Tokens.Ink, focusedPlaceholderColor = Tokens.InkFaint, unfocusedPlaceholderColor = Tokens.InkFaint,
+            ),
+        )
+        Text(
+            stringResource(UiR.string.settings_notes_note), style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            TextAction(stringResource(UiR.string.action_cancel), Tokens.InkSoft, onDismiss)
+            Spacer(Modifier.width(8.dp))
+            PrimaryPill(stringResource(UiR.string.action_save).uppercase(), letterSpaced = true, onClick = { onSave(draft) })
         }
     }
 }

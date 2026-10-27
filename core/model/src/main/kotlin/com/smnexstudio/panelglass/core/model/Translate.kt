@@ -10,7 +10,7 @@ data class TranslateConfig(
     val src: Lang,
     val tgt: Lang,
     val engineId: EngineId,
-    val sfxMode: SfxMode = SfxMode.OVERLAY,
+    val sfxMode: SfxMode = SfxMode.REPLACE,
     val freeTextMode: FreeTextMode = FreeTextMode.OVERLAY,
     /** The lettering font, a Studio font id; null is the target language's default ([Settings.readerFontId]). */
     val fontId: String? = null,
@@ -19,6 +19,8 @@ data class TranslateConfig(
     val seriesKey: String = "",
     val glossary: Map<String, String> = emptyMap(),
     val contextMode: ContextMode = ContextMode.BATCHED,
+    /** The user's notes for the AI engines: Settings' notes until the pipeline adds the series' ([TranslationNotes]). */
+    val notes: String = "",
 )
 
 /** Where the pipeline gets its pixels: a platform bitmap (the reader's viewport snapshot) the pipeline module unwraps. */
@@ -26,14 +28,32 @@ sealed class ImageSource {
     class Native(val handle: Any) : ImageSource()
 }
 
-/** A rendered region as a percentage-positioned WEBP overlay. Never a whole image. */
-class Patch(
+/**
+ * A rendered region as a percentage-positioned WEBP overlay. Never a whole image.
+ *
+ * A freshly rendered patch also carries its [image] (a platform bitmap the reader shows as it is) and is encoded only
+ * when [webp] is first read (the patch cache, the debug dump), off the path to the screen: encoding lossless WEBP and
+ * decoding it straight back cost every patch twice before it could be shown. One read from the cache has bytes only.
+ */
+class Patch private constructor(
     val xPct: Float,
     val yPct: Float,
     val wPct: Float,
     val hPct: Float,
-    val webp: ByteArray,
-)
+    /** The rendered pixels, never recycled (the reader may still draw them); null for a patch read from the cache. */
+    val image: Any?,
+    encoded: Lazy<ByteArray>,
+) {
+    /** From WEBP bytes (the patch cache). */
+    constructor(xPct: Float, yPct: Float, wPct: Float, hPct: Float, webp: ByteArray) :
+        this(xPct, yPct, wPct, hPct, null, lazyOf(webp))
+
+    /** From rendered pixels; [encode] runs once, when [webp] is first read. */
+    constructor(xPct: Float, yPct: Float, wPct: Float, hPct: Float, image: Any, encode: () -> ByteArray) :
+        this(xPct, yPct, wPct, hPct, image, lazy(encode))
+
+    val webp: ByteArray by encoded
+}
 
 data class PageResult(
     val imageId: String,
@@ -73,10 +93,15 @@ class TranslateRequest(
      * read ([TranslatedItem.source]) and its translation. Only for engines with [EngineId.readsCrops].
      */
     val readImages: Map<Int, ByteArray> = emptyMap(),
+    /**
+     * The user's own instructions (characters' pronouns, series notes, Settings' notes; [TranslationNotes]). Unlike
+     * page text they are followed. Machine translation (ML Kit) has no prompt and ignores them.
+     */
+    val notes: String = "",
 ) {
     /** Subset request for retries/fallbacks. The montage is dropped: its cell numbering would no longer match. */
     fun withItems(subset: List<RegionItem>): TranslateRequest {
         val ids = subset.map { it.i }.toSet()
-        return TranslateRequest(subset, src, tgt, glossary, priorContext, null, emptyList(), readImages.filterKeys { it in ids })
+        return TranslateRequest(subset, src, tgt, glossary, priorContext, null, emptyList(), readImages.filterKeys { it in ids }, notes)
     }
 }

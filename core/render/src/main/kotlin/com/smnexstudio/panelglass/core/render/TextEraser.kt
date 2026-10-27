@@ -151,7 +151,10 @@ class TextEraser(
         val gray = crop.toGray()
         val local = region.bbox.offset(-cropRect.left, -cropRect.top).clamp(crop.width, crop.height)
         val glyph = glyphMask(gray, local, region) ?: return EraseResult(crop, false, null, EraseResult.Method.NONE)
-        val glyphDil = Morphology.dilate(glyph, glyphDilate)
+        // Webtoon narration is light lettering in a dark outline (or the reverse): the mask holds the fill only, and a
+        // fixed few pixels left the outline behind as black smudges under the translation. The outline grows with
+        // the glyph, so the mask does too.
+        val glyphDil = Morphology.dilate(glyph, outlineReach(region.fontSizePx))
 
         // Halo test: the artist often gives free text a flat bright surround. Fill it and we're done.
         val halo = Morphology.dilate(glyphDil, haloDilate)
@@ -238,7 +241,14 @@ class TextEraser(
 
     private fun gradientStats(gray: Gray, mask: GlyphMask): Stats = maskStats(gray.sobelMagnitude(), mask)
 
+    /** How far past the glyph fill the mask reaches: [glyphDilate] at small sizes, an outline's width on big lettering. */
+    internal fun outlineReach(fontSizePx: Float): Int =
+        max(glyphDilate, (fontSizePx * OUTLINE_OF_GLYPH).roundToInt()).coerceAtMost(MAX_OUTLINE_PX)
+
     companion object {
+        /** A lettering outline is about this fraction of the glyph height (7–8 px at the 93 px narration measured). */
+        const val OUTLINE_OF_GLYPH = 0.08f
+        const val MAX_OUTLINE_PX = 12
         /** Share of the ink inside the text box the container fill must cover to count as an erase. */
         const val MIN_INK_COVERED = 0.6f
         const val SMEAR_RATIO_MAX = 2.5f

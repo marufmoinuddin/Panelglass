@@ -64,8 +64,6 @@ internal fun SfxPanel(
     if (browsing) FontBrowserSheet(edit.style.fontId, tgt, FontRole.SFX, choices, onFont = { onEdit(edit.copy(style = edit.style.copy(fontId = it))) }, onDismiss = { browsing = false })
     val modes = mapOf(
         SfxEditMode.KEEP to stringResource(UiR.string.studio_sfx_keep),
-        SfxEditMode.GLOSS to stringResource(UiR.string.studio_sfx_gloss),
-        SfxEditMode.OVERLAY to stringResource(UiR.string.studio_sfx_overlay),
         SfxEditMode.REPLACE to stringResource(UiR.string.studio_sfx_replace),
     )
     Spacer(Modifier.height(4.dp))
@@ -74,8 +72,6 @@ internal fun SfxPanel(
         stringResource(
             when (edit.mode) {
                 SfxEditMode.KEEP -> UiR.string.studio_sfx_keep_note
-                SfxEditMode.GLOSS -> UiR.string.studio_sfx_gloss_note
-                SfxEditMode.OVERLAY -> UiR.string.studio_sfx_overlay_note
                 SfxEditMode.REPLACE -> UiR.string.studio_sfx_replace_note
             },
         ),
@@ -84,7 +80,7 @@ internal fun SfxPanel(
     if (edit.mode == SfxEditMode.REPLACE && lamaHint) Text(
         stringResource(UiR.string.studio_lama_hint), style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft, modifier = Modifier.padding(top = 4.dp),
     )
-    if (edit.mode == SfxEditMode.OVERLAY || edit.mode == SfxEditMode.REPLACE) {
+    if (edit.mode == SfxEditMode.REPLACE) {
         PanelLabel(stringResource(UiR.string.studio_sfx_presets))
         val presets = mapOf(
             SfxPreset.IMPACT to stringResource(UiR.string.studio_sfx_preset_impact),

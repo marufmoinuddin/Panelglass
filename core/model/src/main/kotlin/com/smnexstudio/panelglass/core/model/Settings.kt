@@ -25,7 +25,7 @@ data class Settings(
      * null is Auto, the comic font for the target language (`StudioFonts.defaultFor`).
      */
     val readerFontId: String? = null,
-    val sfxMode: SfxMode = SfxMode.OVERLAY,
+    val sfxMode: SfxMode = SfxMode.REPLACE,
     val freeTextMode: FreeTextMode = FreeTextMode.ERASE,
     val patchQuality: Int = 100,
     val translateOnOpen: Boolean = false,
@@ -33,6 +33,10 @@ data class Settings(
     val appTheme: AppTheme = AppTheme.DEFAULT,
     /** Where Qwen runs; [QwenBackend.AUTO] decides by the phone's RAM. */
     val qwenBackend: QwenBackend = QwenBackend.AUTO,
+    /** Notes for the AI engines on every series (tone, honorifics); a series adds its own in the reader. */
+    val translationNotes: String = "",
+    /** Ask GitHub for a newer release once a day at start (Settings › About); the manual check works either way. */
+    val autoUpdateCheck: Boolean = true,
 ) {
     /**
      * The model to call for [id]: the user's choice, else the provider's default; blank when neither exists. A
@@ -59,5 +63,6 @@ data class Settings(
         fontId = readerFontId,
         patchQuality = patchQuality,
         contextMode = contextMode,
+        notes = translationNotes,
     )
 }

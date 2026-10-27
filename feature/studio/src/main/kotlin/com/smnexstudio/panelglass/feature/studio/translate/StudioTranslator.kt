@@ -113,6 +113,7 @@ class StudioTranslator @Inject constructor(
                 sfxMode = s.sfxMode, freeTextMode = s.freeTextMode, fontId = s.readerFontId, contextMode = s.contextMode,
                 // The manga's own glossary (the "Remember this effect" entries, later).
                 seriesKey = seriesKey(manga.id),
+                notes = s.translationNotes,
             ),
         )
     }
@@ -185,7 +186,7 @@ class StudioTranslator @Inject constructor(
     private suspend fun addUnread(page: StudioPage, rect: IntRect, kind: RegionKind): Long {
         val order = (repo.bubbleList(page.id).maxOfOrNull { it.order } ?: -1) + 1
         val b = Bubble(pageId = page.id, order = order, kind = kind, polygon = rect(rect), region = null)
-        return repo.addBubble(if (kind == RegionKind.SFX) b.copy(sfx = SfxRenderer.initial(b, SfxEditMode.OVERLAY)) else b)
+        return repo.addBubble(if (kind == RegionKind.SFX) b.copy(sfx = SfxRenderer.initial(b, SfxEditMode.REPLACE)) else b)
     }
 
     /** [b] with the translation [out] gave for item [i]; what an engine that reads crops read becomes its source text. */
@@ -388,7 +389,7 @@ class StudioTranslator @Inject constructor(
         fun decode(s: String?): EngineFailure? = s?.let { runCatching { json.decodeFromString(EngineFailure.serializer(), it) }.getOrNull() }
 
         /** A detected region as a bubble: the balloon (else the text box) as a rectangle; no glyph mask is stored. */
-        fun bubblesOf(pageId: Long, regions: List<TextRegion>, sfxMode: SfxEditMode = SfxEditMode.OVERLAY): List<Bubble> = regions.mapIndexed { i, r ->
+        fun bubblesOf(pageId: Long, regions: List<TextRegion>, sfxMode: SfxEditMode = SfxEditMode.REPLACE): List<Bubble> = regions.mapIndexed { i, r ->
             val box = r.container ?: r.bbox
             val b = Bubble(
                 pageId = pageId, order = i, kind = r.kind, polygon = rect(box),

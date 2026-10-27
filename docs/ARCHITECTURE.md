@@ -34,6 +34,7 @@ flowchart TD
     browser[":feature:browser"]
     library[":feature:library"]
     settings[":feature:settings"]
+    studio[":feature:studio"]
     pipeline[":core:pipeline"]
     engine[":core:engine"]
     ocr[":core:ocr"]
@@ -42,8 +43,9 @@ flowchart TD
     data[":core:data"]
     model[":core:model"]
 
-    app --> browser & library & settings
+    app --> browser & library & settings & studio
     browser --> pipeline & engine & ocr & ui & data
+    studio --> pipeline & render & engine & ocr & ui & data
     settings --> engine & ocr & ui & data
     library --> ui & data
     pipeline --> engine & ocr & render & data
@@ -58,17 +60,18 @@ Every module also depends on `:core:model`; those edges are left out for readabi
 
 | Module | Responsibility | Key types |
 |---|---|---|
-| `:core:model` | Pure Kotlin, no Android. The shared vocabulary. | `Lang`, `EngineId`, `EngineFailure`, `TextLine`, `TextRegion`, `RegionKind`, `TranslateConfig`, `Settings`, `Site` |
-| `:core:data` | Persistence and secrets. | `PanelglassDb` (Room), `SettingsRepository` (DataStore), `SecureKeyStore`, `PatchCache`, `SystemDownloads` |
-| `:core:engine` | Everything that turns source text into target text. | `TranslationEngine`, `EngineRegistry`, `EngineRetry`, `BatchingTranslator`, `GeminiEngine`, `GoogleTranslateEngine`, `LocalLlmEngine` |
-| `:core:ocr` | Finding and reading text in a bitmap. | `ComicTextDetector`, `MangaOcrRecognizer`, `MlKitCropRecognizer`, `RegionBuilder`, `RegionClassifier`, `RegionClusterer` |
-| `:core:render` | Erasing source text and drawing the translation. | `TextEraser`, `RegionRenderer`, `Placement`, `PatchEncoder` |
-| `:core:pipeline` | Orchestration: stages, limits, watchdogs, cache. | `TranslationPipeline`, `RegionOfInterest`, `PageSource`, `PipelineDump` |
-| `:core:ui` | Shared Compose components and theming. | `PanelglassTheme`, `Tokens`, `EnginePicker`, `ApiKeyDialog` |
-| `:feature:browser` | The reader: WebView, capture, overlay, blocking. | `ReaderScreen`, `ReaderViewModel`, `ScreenTranslate`, `ContentChange`, `MangaWebViewClient`, `NewWindows`, `BlockList`, `mt.js` |
+| `:core:model` | Pure Kotlin, no Android. The shared vocabulary. | `Lang`, `EngineId`, `EngineFailure`, `TextLine`, `TextRegion`, `RegionKind`, `TranslateConfig`, `Settings`, `Site`, `GlossaryEntry`, `Pronoun`, `SeriesNotes`, `TranslationNotes` |
+| `:core:data` | Persistence, secrets, downloads, updates. | `PanelglassDb` (Room), `SettingsRepository` (DataStore), `SecureKeyStore`, `PatchCache`, `SystemDownloads`, `GlossaryRepository`, `AppUpdates` |
+| `:core:engine` | Everything that turns source text into target text. | `TranslationEngine`, `EngineRegistry`, `EngineRetry`, `BatchingTranslator`, `LlmContract`, `GeminiEngine`, `GoogleTranslateEngine`, `LocalLlmEngine` / `LocalPrompt`, `SfxDictionary` |
+| `:core:ocr` | Finding and reading text in a bitmap. | `ComicTextDetector`, `MissedTextDetector` (+ `DbPostProcess`), `MangaOcrRecognizer`, `MlKitCropRecognizer` (+ `HighContrast`), `RegionBuilder`, `RegionClassifier`, `RegionClusterer` |
+| `:core:render` | Erasing source text and drawing the translation; the Studio's page layers. | `TextEraser`, `RegionRenderer`, `Placement`, `PatchEncoder`, `PageCleaner`, `StudioRenderer`, `SfxRenderer`, `StudioFonts` |
+| `:core:pipeline` | Orchestration: stages, limits, watchdogs, cache. | `TranslationPipeline`, `RegionOfInterest`, `PageSource`, `PipelineDump`, `TileDetection` |
+| `:core:ui` | Shared Compose components, theming, every UI string. | `PanelglassTheme`, `Tokens`, `EnginePicker`, `ApiKeyDialog`, `SeriesMemorySheet`, `FontBrowser` |
+| `:feature:browser` | The reader: WebView, capture, overlay, page language, blocking. | `ReaderScreen`, `ReaderViewModel`, `ScreenTranslate`, `ContentChange`, `MangaWebViewClient`, `NewWindows`, `BlockList`, `mt.js`, `pt.js` |
 | `:feature:library` | Saved sites and history. | `LibraryScreen`, `HistoryScreen`, `LibraryViewModel` |
-| `:feature:settings` | Languages, engines, models, themes, storage. | `SettingsScreen`, `SettingsViewModel` |
-| `:app` | Activity, navigation graph, application class. | `MainActivity`, `PanelglassApp` |
+| `:feature:settings` | Languages, engines, sound effects, notes, models, fonts, themes, storage, updates. | `SettingsScreen`, `SettingsViewModel` |
+| `:feature:studio` | Translating the user's own files: import, translate, review, clean, letter, export. | `StudioTranslator`, `ReviewViewModel`, `StudioImporter`, `StudioExporter` |
+| `:app` | Activity, navigation graph, application class, update dialog. | `MainActivity`, `PanelglassApp`, `UpdateHost` |
 
 Dependencies point downwards only: features never depend on each other, and `:core:model` depends on nothing.
 
@@ -117,6 +120,14 @@ flowchart LR
   app). **`NewWindows`** decides every new-window request: only a tapped same-site link opens, in the reader.
 - **`EngineRegistry`** resolves the selected `EngineId` to an engine, or to a typed failure (`MissingKey`,
   `ModelMissing`, not offered). It never picks a different engine.
+- **Two detectors.** `ComicTextDetector` (RT-DETR-v2, balloons and text) runs first; `MissedTextDetector`
+  (PP-OCRv6 tiny) then finds text outside its boxes, mostly sound effects. See [DETECTION_AND_OCR.md](DETECTION_AND_OCR.md).
+- **The series' glossary and notes** (`GlossaryRepository`, edited in the reader's *Glossary & pronouns* sheet) and
+  Settings' translation notes are combined by the pipeline before every capture and sent with each engine call. See
+  [TRANSLATION_QUALITY.md](TRANSLATION_QUALITY.md).
+- **`AppUpdates`** asks GitHub for the latest release once a day (never in a debug build), downloads a newer APK
+  through `SystemDownloads`, checks it against the release's `.sha256`, and hands it to Android's installer; the
+  dialog is `UpdateHost` in `:app`.
 
 ## Engines
 
@@ -151,12 +162,13 @@ the picker and refused by the registry.
 
 | What | Where | Notes |
 |---|---|---|
-| Sites, history (last 15), SFX translations | Room `PanelglassDb` | No migrations yet: bump the version on schema change |
-| Settings | DataStore | Includes remembered Gemini request options per model |
+| Sites, history (last 15), SFX translations, glossary (with pronouns), series notes, Studio library | Room `PanelglassDb`, version 5 | Every schema change bumps the version and adds a `Migration` (`MIGRATION_3_4`, `MIGRATION_4_5`) |
+| Settings, translation notes, skipped update, last update check | DataStore | Includes remembered Gemini request options per model |
 | API keys | `SecureKeyStore` | AES-GCM, key in the Android Keystore |
-| Rendered patches | `PatchCache` (disk LRU) | Keyed by image hash, languages, engine and `PIPELINE_VERSION` |
-| Detector model | `assets/` → `filesDir/models/` | Bundled, 11 MB |
-| LLMs, manga-ocr | App-specific external storage | Downloaded by DownloadManager, SHA-256 verified |
+| Rendered patches | `PatchCache` (disk LRU) | Keyed by image hash, languages, engine, `PIPELINE_VERSION`, font, and a digest of the glossary and notes |
+| Detector models | `assets/` | Bundled: comic detector 11 MB, PP-OCRv6 tiny 1.8 MB |
+| LLMs, manga-ocr, LaMa | App-specific external storage | Downloaded by DownloadManager, SHA-256 verified |
+| Update APK | App-specific external storage, `updates/` | Only the release being installed is kept |
 | Block lists | `filesDir/blocklist/<source>.txt` | Fetched at runtime, refreshed daily |
 
 `android:allowBackup="false"` plus `data_extraction_rules.xml` (which excludes every domain from cloud backup and from
@@ -180,8 +192,19 @@ phone, and everything is removed on uninstall.
 
 - **Keys.** Stored only in `SecureKeyStore`; never logged. HTTP bodies are never logged (they can echo a key).
 - **Logs.** Timings and failure types only: no keys, page URLs, page text or user IDs.
-- **Exported activity.** `MainActivity` accepts a `url` from other apps but loads only `http(s)`. The scripted-run
-  extras (`engine`, `src`, `tgt`, `start`) are honoured only in debuggable builds.
+- **Exported activity.** `MainActivity` accepts a `url` from other apps but loads only `https` (`http` is
+  upgraded). The scripted-run extras (`engine`, `src`, `tgt`, `start`) are honoured only in debuggable builds.
+- **Debug and release side by side.** Debug builds use the application ID `com.smnexstudio.panelglass.debug` and the
+  name "Panelglass Debug": their own data, keys and downloads; release builds keep `com.smnexstudio.panelglass`.
+- **In-app updates.** The APK URL must be https under this repository's `releases/download/` (`ReleaseInfo.PREFIX`,
+  from the `updateRepo` Gradle property, which the release workflow sets to the repository it runs in); the file is
+  checked against the release's `.sha256` before Android's installer sees it, and the installer refuses an APK signed
+  with another key. `REQUEST_INSTALL_PACKAGES` and a FileProvider that shares only `updates/` make the
+  hand-off possible.
+- **User notes are instructions, page text is not.** Engines follow the reader's notes and glossary, but every prompt
+  tells the model that page text is data, never instructions. No model has tools: its reply is only drawn as text.
+  Every cloud reply is capped by the item count (`LlmContract.outputBudget`) and glossary terms by
+  `GlossaryEntry.MAX_CHARS`, so no note or term can make a call write, and bill, an essay.
 - **WebView.** No file or content access; no JavaScript interface is exposed to pages; new windows are decided
   natively; blocked hosts never become the main frame.
 - **Downloads.** Every model file is pinned to a Hugging Face commit and verified against its SHA-256 before it is
@@ -197,3 +220,4 @@ phone, and everything is removed on uninstall.
 | Instrumented | `./gradlew :core:pipeline:connectedDebugAndroidTest` | A rendered page through the whole pipeline |
 
 LiteRT-LM is never loaded in JVM tests: `LocalLlmEngine.runnerFactory` is replaced by a scripted `LlmRunner`.
+Every test class, with counts, is listed in [TESTING.md](TESTING.md).

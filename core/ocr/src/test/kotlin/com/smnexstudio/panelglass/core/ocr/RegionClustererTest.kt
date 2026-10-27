@@ -2,6 +2,7 @@ package com.smnexstudio.panelglass.core.ocr
 
 import com.smnexstudio.panelglass.core.model.IntRect
 import com.smnexstudio.panelglass.core.model.Lang
+import com.smnexstudio.panelglass.core.model.ReadState
 import com.smnexstudio.panelglass.core.model.TextLine
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -9,6 +10,17 @@ import org.junit.jupiter.api.Test
 
 class RegionClustererTest {
     private val clusterer = RegionClusterer()
+
+    @Test
+    fun aRegionTakesItsLinesReadState() {
+        val box = IntRect(300, 100, 330, 260)
+        assertEquals(ReadState.UNREAD, clusterer.build(listOf(TextLine.unread(box)), Lang.JA).state)
+        assertEquals(ReadState.UNREADABLE, clusterer.build(listOf(TextLine.unreadable(box)), Lang.JA).state)
+        // Mixed with a read line, the region is read and its text is only what was read: the filler never joins it.
+        val mixed = clusterer.build(listOf(TextLine.unreadable(box), TextLine(IntRect(262, 100, 292, 230), "元気", vertical = true)), Lang.JA)
+        assertEquals(ReadState.READ, mixed.state)
+        assertEquals("元気", mixed.text)
+    }
 
     /** Vertical Japanese arrives as one-character-wide columns; they must merge right-to-left into one string. */
     @Test

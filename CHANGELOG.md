@@ -7,6 +7,26 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Glossary & pronouns** in the reader (⋮): character names and terms per series, each character with a pronoun
+  (he, she, they), plus notes for the series. Gemini and the on-device models use them; Google Translate uses the
+  names and terms.
+- **Translation notes** in Settings: instructions for the AI engines on every series (tone, honorifics, how to treat
+  missing subjects).
+- **Sound effects** setting: Keep or Replace (the default) the original effects in the reader.
+- **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector missed; with Replace, effects nothing can read are still erased.
+- **In-app updates**: a newer release is offered once a day (Update or Later), downloaded
+- More Japanese and Korean sound effects in the built-in dictionary; hiragana and katakana spellings, and an extra
+
+### Changed
+
+- The reader switches to the page's own language (Japanese, Korean or Chinese) when it differs from Settings, unless
+  the site has its own.
+- Text that reads as nothing is read again in high contrast, which finds narration on dark art and outlined lettering.
+- Editing a glossary or notes translates pages again instead of showing cached ones.
+- Debug builds install beside the release app as "Panelglass Debug", help to have release version and debug version(developement) side by side.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
@@ -20,7 +40,7 @@ workflow publishes the version's section as the GitHub Release notes.
   - **Clean and restyle**: the original text is removed and the translation lettered inside each balloon's traced
     shape. Set font, size, colour, outline, fill, border and rounded corners per bubble or page; reshape bubbles and
     brush out leftovers. Optional **LaMa** cleanup (208 MB) rebuilds artwork under text.
-  - **Sound effects**: keep, gloss, overlay or replace, with presets, and move, turn, stretch or bend them.
+  - **Sound effects**: keep or replace, with presets, and move, turn, stretch or bend them.
   - **Fonts**: 21 bundled fonts with a default for every target language, plus your own `.ttf` / `.otf` / `.ttc`.
   - **Export** a chapter or a whole manga as images, CBZ or ZIP (with ComicInfo.xml) to Download/Panelglass or a
     folder you pick.

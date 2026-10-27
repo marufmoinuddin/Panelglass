@@ -90,10 +90,13 @@ class EngineException(val failure: EngineFailure, cause: Throwable? = null) :
     Exception(failure::class.simpleName, cause)
 
 @Serializable
+/**
+ * What happens to a page's sound effects: left as drawn, or erased and redrawn in the target language. Gloss (a small
+ * label under the effect) and Overlay (the translation drawn over the original) were removed on 2026-10-18; a saved
+ * GLOSS or OVERLAY reads back as the default, [REPLACE].
+ */
 enum class SfxMode(val label: String) {
     SKIP("Skip"),
-    GLOSS("Gloss"),
-    OVERLAY("Overlay"),
     REPLACE("Replace"),
 }
 

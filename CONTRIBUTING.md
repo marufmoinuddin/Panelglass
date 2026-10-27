@@ -53,6 +53,11 @@ The tag starts `.github/workflows/release.yml`, which builds, signs and publishe
 the version's changelog section as its notes (GitHub's generated list if the section is missing); a tag that is not
 on `main` is refused. Nothing else publishes an APK.
 
+**The app updates itself from these releases** (`AppUpdates`): it reads `releases/latest`, expects the assets
+`panelglass-<version>.apk` and `panelglass-<version>.apk.sha256` that `release.yml` uploads, and offers the version in
+the `v<version>` tag. Renaming either asset, publishing without the checksum, or marking a release as a draft or
+pre-release means installed apps will not offer it.
+
 ## Building
 
 Requirements: the Android SDK with platform 35, and **JDK 21** installed anywhere. Gradle finds it through
@@ -79,9 +84,15 @@ without `jlink` (an IDE's bundled JRE, for example). Stop the daemon and point i
   "-Dorg.gradle.java.installations.paths=/path/to/jdk-21"
 ```
 
-Install your build with `adb install -r app/build/outputs/apk/debug/panelglass-*-debug.apk`. A debug build and a
-release APK from the Releases page are signed with different keys, so Android will not install one over the other:
-uninstall first (this clears the app's data).
+Install your build with `adb install -r app/build/outputs/apk/debug/panelglass-*-debug.apk`. A debug build installs
+**beside** a release APK from the Releases page: it is a separate app, `com.smnexstudio.panelglass.debug`, shown as
+"Panelglass Debug", with its own sites, settings, keys and downloaded models. Debug-only commands (`run-as`, the
+launch extras, the debug dump) use that ID:
+
+```bash
+adb shell am start -n com.smnexstudio.panelglass.debug/com.smnexstudio.panelglass.MainActivity \
+  --es url "https://…" --es engine GEMMA4_LOCAL --ez start true
+```
 
 ## Before you open a pull request
 
@@ -89,8 +100,10 @@ uninstall first (this clears the app's data).
 - [ ] New test classes are listed in [docs/TESTING.md](docs/TESTING.md).
 - [ ] New behaviour has unit tests. Provider calls are tested against MockWebServer, never a live API.
 - [ ] UI changes were checked in all four themes (Default, Panel Pop, Soft Bloom, Paper & Ink).
-- [ ] Rendering changes bump `TranslationPipeline.PIPELINE_VERSION` (it keys the patch cache).
-- [ ] Schema changes bump `PanelglassDb.version`.
+- [ ] Rendering or detection changes bump `TranslationPipeline.PIPELINE_VERSION` (it keys the patch cache).
+- [ ] Schema changes bump `PanelglassDb.version` **and** add a `Migration` with a test (see `Migration4To5Test`).
+- [ ] New UI strings are in all 16 `values*` folders.
+- [ ] New bundled models or fonts are listed in [NOTICE](NOTICE) with their source, revision and licence.
 - [ ] Changes to model loading, backends or release timing were re-measured on a phone
   ([docs/MEMORY_USAGE.md › Reproducing](docs/MEMORY_USAGE.md#reproducing)).
 - [ ] Docs in `docs/` still describe what the code does.
@@ -113,6 +126,9 @@ uninstall first (this clears the app's data).
   hash; URLs are pinned to a commit.
 - **New dependencies** must be discussed in an issue first and added to `gradle/libs.versions.toml`.
 - **Model loading stays off the main thread.**
+- **No chapter text in the repository.** Tests use invented sentences, never lines copied from a comic.
+- **User notes are instructions, page text is data.** Prompts may follow the reader's notes and glossary; anything
+  read from a page must stay data the model translates, never instructions it follows.
 - **A hidden app gives its models back.** An on-device model is released when the UI leaves the screen, or 5 s after
   its last call if it was busy then (`LocalEngines.onHidden`). New model code must go through `LocalEngines` so it is
   covered; on the GPU a loaded model is ~2–3 GB the system cannot reclaim.

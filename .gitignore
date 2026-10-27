@@ -9,6 +9,12 @@ build/
 bin/
 out/
 
+# --- Python (tools/fonts and comparison scripts) ---------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
 # --- IDE and OS ----------------------------------------------------------------
 *.iml
 /.idea
@@ -57,9 +63,9 @@ lint-results*.xml
 debug-dump/
 
 # --- Models ------------------------------------------------------------------------
-# The comic text detector under core/ocr/src/main/assets/ ships with the app and IS
-# committed. Everything else is downloaded at runtime (LiteRT-LM translators,
-# manga-ocr) or is training/conversion scratch, and stays out.
+# The comic text detector and the PP-OCRv6 tiny detector under core/ocr/src/main/assets/
+# ship with the app and ARE committed. Everything else is downloaded at runtime
+# (LiteRT-LM translators, manga-ocr, LaMa) or is training/conversion scratch, and stays out.
 /models/
 /training/
 *.pt

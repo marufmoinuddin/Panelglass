@@ -43,13 +43,11 @@ object SfxRenderer {
     /** The Studio mode for the Settings' sound-effect mode (Skip keeps the original). */
     fun modeOf(m: SfxMode): SfxEditMode = when (m) {
         SfxMode.SKIP -> SfxEditMode.KEEP
-        SfxMode.GLOSS -> SfxEditMode.GLOSS
-        SfxMode.OVERLAY -> SfxEditMode.OVERLAY
         SfxMode.REPLACE -> SfxEditMode.REPLACE
     }
 
-    /** [b]'s effect: its own edit, or the overlay a sound effect had before edits existed. */
-    fun editOf(b: Bubble): SfxEdit = b.sfx ?: initial(b, SfxEditMode.OVERLAY)
+    /** [b]'s effect: its own edit, or a replacement for an effect saved before edits existed. */
+    fun editOf(b: Bubble): SfxEdit = b.sfx ?: initial(b, SfxEditMode.REPLACE)
 
     private class Paints {
         val fill = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
@@ -105,8 +103,7 @@ object SfxRenderer {
         val e = editOf(b)
         when (e.mode) {
             SfxEditMode.KEEP -> return
-            SfxEditMode.GLOSS -> drawGloss(canvas, b, e, tgt, scale)
-            SfxEditMode.OVERLAY, SfxEditMode.REPLACE -> drawEffect(canvas, b, e, tgt, scale)
+            SfxEditMode.REPLACE -> drawEffect(canvas, b, e, tgt, scale)
         }
     }
 
@@ -141,34 +138,13 @@ object SfxRenderer {
         p.fill.letterSpacing = 0f
     }
 
-    /** Gloss: a small label below the effect (above it near the page's bottom), white with a dark outline. */
-    private fun drawGloss(canvas: Canvas, b: Bubble, e: SfxEdit, tgt: Lang, scale: Float) {
-        val p = paints.get()!!
-        val text = label(b, e, tgt)
-        val box = PolygonFit.bounds(b.polygon)
-        p.fill.typeface = StudioFonts.typeface(e.style.fontId, tgt, true, false, FontRole.SFX)
-        p.fill.textLocales = LocaleList(Locale.forLanguageTag(tgt.code))
-        p.fill.letterSpacing = 0f
-        p.fill.textSize = (min(box.width, box.height) * 0.35f).coerceIn(14f, 48f) * scale
-        val (fill, outline) = colours(b, e.style)
-        val below = box.bottom * scale + p.fill.textSize * 1.1f
-        val y = if (below > canvas.height - 4) box.top * scale - p.fill.textSize * 0.3f else below
-        p.stroke.set(p.fill)
-        p.stroke.style = Paint.Style.STROKE
-        p.stroke.strokeWidth = p.fill.textSize * 0.25f
-        p.stroke.color = outline
-        canvas.drawText(text, box.centerX * scale, y, p.stroke)
-        p.fill.color = fill
-        canvas.drawText(text, box.centerX * scale, y, p.fill)
-    }
-
     /**
      * The four corners of the drawn effect in page pixels (the editor's transform box): the text's own box, through
      * the transform. Null when there is nothing to draw.
      */
     fun frame(b: Bubble, tgt: Lang): List<Pt>? {
         val e = editOf(b)
-        if (e.mode == SfxEditMode.KEEP || e.mode == SfxEditMode.GLOSS) return null
+        if (e.mode == SfxEditMode.KEEP) return null
         val text = label(b, e, tgt).ifEmpty { b.sourceText.ifEmpty { return null } }
         val p = TextPaint(Paint.ANTI_ALIAS_FLAG)
         setUp(p, b, e, tgt, text)

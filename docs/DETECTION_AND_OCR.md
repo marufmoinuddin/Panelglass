@@ -7,10 +7,12 @@ step described in [FLOW.md](FLOW.md). Source: `core/ocr` and the detection part 
 
 - [Overview](#overview)
 - [Comic text and bubble detector](#comic-text-and-bubble-detector)
+- [Second pass: text the comic detector missed](#second-pass-text-the-comic-detector-missed)
 - [Filtering before reading](#filtering-before-reading)
 - [Recognition targets](#recognition-targets)
 - [Recognizers](#recognizers)
 - [The recall backstop](#the-recall-backstop)
+- [Text nothing could read](#text-nothing-could-read)
 - [Gemini reading mode](#gemini-reading-mode)
 - [From lines to regions](#from-lines-to-regions)
 - [Region classification](#region-classification)
@@ -19,13 +21,16 @@ step described in [FLOW.md](FLOW.md). Source: `core/ocr` and the detection part 
 
 ## Overview
 
-Detection is two-tier. A comic-specific detector finds the **containers** (balloons and text areas). A recognizer
-then reads **each container crop**, and a full-page ML Kit pass catches text the detector missed.
+Detection is two-tier. A comic-specific detector finds the **containers** (balloons and text areas); a second,
+general text detector adds what it missed (mostly sound effects). A recognizer then reads **each container crop**,
+and a full-page ML Kit pass catches what both detectors missed.
 
 ```mermaid
 flowchart LR
     S[Snapshot<br/>≤1600 px] --> D[RT-DETR-v2 detector<br/>640×640]
+    S --> D2[PP-OCRv6 tiny<br/>second pass]
     D --> B[Boxes: bubble ·<br/>text_bubble · text_free]
+    D2 -->|outside every comic box| B
     B --> F[ROI / edge / done filters]
     F --> T[Recognition targets]
     T -->|JA + manga-ocr installed| M[manga-ocr]
@@ -62,6 +67,28 @@ The snapshot is first downscaled so its long side is at most **1600 px** (`Image
 mapped back by the inverse scale. The ONNX file is copied once from assets to `filesDir/models/`, because ONNX
 Runtime opens models by path, and it is pinned by its exact size. One session is shared behind a mutex.
 
+## Second pass: text the comic detector missed
+
+The comic detector is trained on balloons and comic lettering; it misses most brush-lettered Korean sound effects.
+On phone screenshots of two webtoon chapters it boxed 1 of 8 effects, where PP-OCRv6 tiny boxed 7 (CRAFT boxed all 8
+but took 4–20× longer and is 45× larger). So every page runs both.
+
+`MissedTextDetector` runs [PP-OCRv6 tiny det](https://huggingface.co/PaddlePaddle/PP-OCRv6_tiny_det_onnx)
+(PaddlePaddle, Apache-2.0, 1.8 MB official ONNX, bundled as `ppocrv6-tiny-det.onnx`; revision and SHA-256 in NOTICE):
+
+| | |
+|---|---|
+| Input | 1×3×H×W float: the page resized so its long side is ≤ 960 px and both sides are multiples of 32; BGR planes normalised with ImageNet mean and std (PaddleOCR's preprocessing on an OpenCV image) |
+| Output | 1×1×H×W text probability |
+| Post-processing (`DbPostProcess`) | Pixels over 0.3 in 4-connected components, kept when their mean probability reaches 0.6, each grown by `area × 1.5 / perimeter` (PaddleOCR's unclip), as axis-aligned boxes; neighbours closer than half their short side merge into one block (타 + 닥 → 타닥) |
+| Kept | Boxes whose centre is outside every comic-detector box and which are less than 30% covered by one, at least 2% of the page width on their short side (tiny print drawn into the art is not lettering), and under half the page |
+
+They join the comic detector's boxes as `text_free` and go through the same filters and recognizers. The model has no
+balloon class, so it complements the comic detector and never replaces it. On the Motorola Edge 60 Pro the pass takes
+about 350 ms per screen (590 ms at most); it is loaded with the reader's pre-warm. The two detectors are independent
+(own sessions and locks, the bitmap only read) and run side by side; both use the CPU, so each slows a little, and
+together they took 650–1,100 ms per screen on the Motorola. The log line gives both: `detect …ms, first pass …ms`.
+
 ## Filtering before reading
 
 Per-crop OCR is the slowest stage, so boxes the pipeline will discard are removed **before** they are read
@@ -96,6 +123,11 @@ BERT-style decoder (~140 MB, fp32), verified by SHA-256 on download.
 - Output is one line per crop, flagged vertical when the crop is taller than wide, with a `fontSizePx` hint derived
   from area per character (the box spans several columns, so its size says little about the glyphs).
 - Used for Japanese whenever it is installed. Its sessions are released under memory pressure.
+- It writes Japanese for any crop, and on speed lines, art and small print it invents a reading. Each reading carries
+  the model's confidence (geometric mean of the chosen tokens' probabilities): a **free-text** box read below 0.80
+  (`ComicTextDetector.MIN_FREE_CONFIDENCE`) is dropped, so nothing is translated or erased there, and ML Kit's
+  full-page pass may add a line inside it only when ML Kit is as sure. Measured on a chapter: real text 0.87–1.00,
+  false readings 0.41–0.73. Balloon text is never dropped.
 
 ### ML Kit on the crop (every other case)
 
@@ -103,6 +135,9 @@ BERT-style decoder (~140 MB, fp32), verified by SHA-256 on download.
 
 - **Scaling** (`CropScalePlan`): ML Kit reads CJK best well above ~24 px glyphs, so small crops are enlarged (up to 3×)
   until the short side reaches 1200 px, and large crops are shrunk so the long side stays under 3000 px.
+- **High-contrast retry** for any language: a crop that reads as no letters at all is read once more as black ink on
+  white (`HighContrast`: Otsu on luminance, the smaller class is the ink, so light lettering on dark art is
+  inverted). White or coloured narration on dark art and outlined lettering are often only read this way.
 - **Rotated "shadow" pass** for Japanese: when the upright reading of a tall crop is weak (nothing, or scattered
   one- and two-character fragments, which is how ML Kit fails on vertical text), the crop is read again rotated ±90°
   so each column becomes a row. The reading with the most CJK characters wins; rotated results are mapped back and
@@ -117,12 +152,23 @@ In parallel with the crops, ML Kit reads the **whole snapshot**. A backstop line
 detector box and it overlaps every box by less than 35%. This recovers text the detector missed without duplicating
 text it found.
 
+A backstop region of a **single letter** is dropped (`BuiltRegion.boxed` is false for it): a lone character outside
+every detector box is almost never lettering. The reader's status disc is also outside the region of interest, since
+the snapshot includes it.
+
+## Text nothing could read
+
+A `text_free` box the detectors are sure of (score ≥ 0.5) with no line read in it becomes a `ReadState.UNREADABLE`
+region of kind SFX, when SFX mode is Replace. It is never sent to an engine; the renderer only erases it
+(`RegionRenderer.eraseOnly`), and leaves it alone when the eraser refuses (art too busy to repaint).
+
 ## Gemini reading mode
 
 When the engine reads images itself (`EngineId.readsCrops`, currently Gemini), detection runs with `read = false`:
 
 - no manga-ocr, no ML Kit on crops and no full-page backstop;
-- one `TextLine.UNREAD` placeholder per recognition target (vertical for tall CJK boxes);
+- one `ReadState.UNREAD` line per recognition target (vertical for tall CJK boxes); its text is only filler, the
+  state is what marks it;
 - regions built from placeholders are `unread`, and the pipeline sends their crops to the engine
   (see [FLOW.md](FLOW.md#translation)).
 
@@ -143,6 +189,14 @@ because the detector takes only 1–2 s. The trade-off is that text the detector
 - **The region box is the union of its lines**, never the detector box: a loose detector box must not become an
   erase rectangle. The balloon itself is kept as `container`, the space the translation may use.
 - **The box class seeds the region kind**: text in a balloon is `ENCLOSED` whatever the pixels say.
+- **One region per balloon** (`DetectionStage.mergeSameBalloon`). Two text boxes in one balloon (a speech read as two
+  columns: 見せてやる！ and この力が…) become one region in reading order. Each used to be erased with the whole
+  balloon and gave a patch over the same rectangle; the reader kept one patch and the second sentence vanished, its
+  Japanese erased. The balloon's box may be smaller than the lettering (a spiky shout's text reaches into the
+  spikes), so membership comes from the text box's centre. Text far apart in one box (two balloons the detector
+  boxed as one) stays apart: the boxes of one balloon span at most 1.5× their summed sizes.
+- **Nested readings** (`DetectionStage.dropNested`). A region inside a larger one that already holds its text (…あなた
+  inside …あなたどうして…!) is dropped, so a balloon is not lettered twice.
 
 ## Region classification
 
@@ -170,8 +224,9 @@ On-device engines receive bubbles in this order, in groups of 4.
 ## Tuning and measuring
 
 - **ONNX Runtime options.** Both models share `OrtCpu.options` (ORT 1.22, CPU/MLAS). XNNPACK is available but off: it
-  was slower on the x86 emulator for both models. To measure on a phone:
-  `adb shell run-as com.smnexstudio.panelglass touch files/debug-ortbench`, open the reader, then
+  was slower on the x86 emulator for both models, and on the Motorola Edge 60 Pro too (2026-10-17: detector 314 →
+  498–547 ms, manga-ocr encoder 46 → 112–124 ms). To measure on a phone:
+  `adb shell run-as com.smnexstudio.panelglass.debug touch files/debug-ortbench`, open the reader, then
   `adb logcat -s OrtBench` for median timings per option set. Remove the file afterwards.
 - **What a run saw.** The debug dump (see [FLOW.md](FLOW.md#diagnostics)) lists every region's kind, box, text and
   erase method next to the snapshot.

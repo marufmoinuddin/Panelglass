@@ -81,6 +81,58 @@ object BalloonFit {
         }
     }
 
+    /** A balloon found from its paper: text rectangles of several shapes, and its outline (box coordinates). */
+    class Shape(val boxes: List<FRect>, val outline: List<Pair<Float, Float>>)
+
+    /**
+     * [interior] and [outline] from one flood fill, with the largest centred rectangle for each width : height ratio in
+     * [aspects] (null: the box's own) instead of the box's shape alone: a spiky or slanted balloon holds a wide or square
+     * rectangle far larger than one shaped like its box. Null when no balloon's inside is found from near the centre.
+     */
+    fun shape(pixels: IntArray, w: Int, h: Int, aspects: List<Float?>, insetShare: Float = 0.04f, points: Int = 32, grow: Float = 2f): Shape? {
+        if (w < 8 || h < 8 || pixels.size < w * h) return null
+        val paper = BooleanArray(w * h) { luma(pixels[it]) >= PAPER_LUMA }
+        val seed = seed(paper, w, h) ?: return null
+        val inside = closeHoles(fill(paper, w, h, seed), w, h)
+        var count = 0
+        var sx = 0L
+        var sy = 0L
+        for (i in inside.indices) if (inside[i]) { count++; sx += i % w; sy += i / w }
+        if (count < MIN_SHARE * w * h) return null
+        val cx = sx.toFloat() / count
+        val cy = sy.toFloat() / count
+        val roomW = min(cx, w - 1 - cx)
+        val roomH = min(cy, h - 1 - cy)
+        val boxes = aspects.mapNotNull { aspect ->
+            var hw = roomW
+            var hh = roomH
+            if (aspect != null && roomH > 0f) { if (roomW / roomH > aspect) hw = roomH * aspect else hh = roomW / aspect }
+            var lo = 0f
+            var hi = 1f
+            repeat(16) {
+                val s = (lo + hi) / 2f
+                if (fits(inside, w, h, cx, cy, hw * s, hh * s)) lo = s else hi = s
+            }
+            if (lo <= 0.05f) null
+            else FRect(cx - hw * lo, cy - hh * lo, cx + hw * lo, cy + hh * lo).let { it.inset(min(it.width, it.height) * insetShare) }
+        }
+        val reach = kotlin.math.hypot(w.toFloat(), h.toFloat())
+        val outline = (0 until points).map { k ->
+            val a = 2.0 * Math.PI * k / points
+            val dx = kotlin.math.cos(a).toFloat()
+            val dy = kotlin.math.sin(a).toFloat()
+            var r = 0f
+            while (r < reach) {
+                val x = (cx + dx * (r + 0.5f)).toInt()
+                val y = (cy + dy * (r + 0.5f)).toInt()
+                if (x !in 0 until w || y !in 0 until h || !inside[y * w + x]) break
+                r += 0.5f
+            }
+            ((cx + dx * (r + grow)).coerceIn(0f, w.toFloat())) to ((cy + dy * (r + grow)).coerceIn(0f, h.toFloat()))
+        }
+        return Shape(boxes, outline)
+    }
+
     private fun luma(c: Int): Int = (((c shr 16) and 0xFF) * 299 + ((c shr 8) and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
 
     /** The paper pixel nearest the centre (the cleaned text may leave a speck right on it). */

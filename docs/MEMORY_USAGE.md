@@ -16,6 +16,7 @@ Measured 2026-09-27. Re-measure when LiteRT-LM, a model file or the trim policy 
 - [Results: Google Translate](#results-google-translate)
 - [Results: Qwen 2.5 1.5B on the CPU](#results-qwen-25-15b-on-the-cpu)
 - [Going to the background mid-translation](#going-to-the-background-mid-translation)
+- [Re-run, 2026-10-17](#re-run-2026-10-17)
 - [Comparison](#comparison)
 - [Observations](#observations)
 - [Reproducing](#reproducing)
@@ -225,6 +226,89 @@ the loaded model instead of reloading it. An activity starting again (`onVisible
 the re-run of B the model finished loading and translating in the background, and the log shows
 `UI hidden: releasing the model after its last call` 5.0 s after the last generation; the app was at 519 MB 4 s later.
 
+## Re-run, 2026-10-17
+
+The same steps, run by a script (`dumpsys meminfo` every ~2 s while translating), on the build with the PP-OCRv6
+second pass, glossary and notes. **Not directly comparable with the tables above:**
+
+| | 2026-09-27 (above) | 2026-10-17 |
+|---|---|---|
+| Android | 16 | 17 |
+| Page | Bilibili, Chinese → English, page turns | rawkuma, **Japanese** → English, scroll steps |
+| Recognizer | ML Kit (Chinese) | **manga-ocr** (installed; ~140 MB of sessions) |
+| Second detection pass | – | PP-OCRv6 tiny, every capture |
+| Device available before start | 3.4 GB | 2.7–3.0 GB |
+| Qwen | measured | measured (GPU, Automatic on this phone) |
+| Camera steps (3b / 3c) | `dumpsys meminfo` | Gemma 4 and Google: not readable¹; Qwen: read from `/proc/<pid>/smaps_rollup` |
+
+**Gemma 4 E2B** (GPU, loaded in 5.0 s; 4 screens, 12.5 s median, 16.6 s at most):
+
+| Step | App PSS | Private dirty | GPU | Native | Swap | Device available |
+|---|---|---|---|---|---|---|
+| 0 Not running | – | – | – | – | – | 2,696 MB |
+| 1a Home screen | 205 MB | 119 MB | 36 MB | 25 MB | 0 | 2,941 MB |
+| 1b Reader, model loaded, idle | 2,954 MB | 2,641 MB | 1,893 MB | 690 MB | 5 MB | 1,306 MB |
+| 2 Translating (avg / peak) | 3,209 / 3,346 MB | 2,944 MB peak | 1,988 MB peak | 905 MB peak | 544 MB peak | 824 MB lowest |
+| 3a Background, 5 s | 622 MB | 250 MB | 49 MB | 158 MB | 307 MB | 2,606 MB |
+| 3b / 3c Camera open | not readable¹ | | | | | 1,760 / 1,805 MB |
+| 3d Back, one step | 632 MB | 94 MB | 75 MB | 8 MB | 469 MB | 2,588 MB |
+| 4a Background again | 601 MB | 90 MB | 45 MB | 9 MB | 445 MB | 2,513 MB |
+| 4b / 4c Cleared | process killed | | | | | 2,947 / 2,967 MB |
+
+**Google Translate** (4 screens, 5.5 s median, 8.4 s at most):
+
+| Step | App PSS | Private dirty | GPU | Native | Swap | Device available |
+|---|---|---|---|---|---|---|
+| 0 Not running | – | – | – | – | – | 2,986 MB |
+| 1a Home screen | 200 MB | 119 MB | 36 MB | 25 MB | 0 | 2,966 MB |
+| 1b Reader, idle | 597 MB | 474 MB | 62 MB | 354 MB | 0 | 2,571 MB |
+| 2 Translating (avg / peak) | 930 / 1,019 MB | 882 MB peak | 106 MB peak | 698 MB peak | 0 | 2,147 MB lowest |
+| 3a Background, 5 s | 667 MB | 535 MB | 33 MB | 444 MB | 0 | 2,340 MB |
+| 3b / 3c Camera open | not readable¹ | | | | | 1,641 / 1,587 MB |
+| 3d Back, one step | 671 MB | 81 MB | 56 MB | 12 MB | 451 MB | 2,511 MB |
+| 4a Background again | 639 MB | 76 MB | 25 MB | 12 MB | 426 MB | 2,383 MB |
+| 4b / 4c Cleared | process killed | | | | | 2,913 / 2,909 MB |
+
+**Qwen 2.5 1.5B** (GPU, loaded in 11.5 s; 4 screens, 13.5 s median, 28.7 s at most):
+
+| Step | App PSS | Private dirty | GPU | Native | Swap | Device available |
+|---|---|---|---|---|---|---|
+| 0 Not running | – | – | – | – | – | 2,794 MB |
+| 1a Home screen | 187 MB | 119 MB | 36 MB | 25 MB | 0 | 2,832 MB |
+| 1b Reader, model loaded, idle | 3,340 MB | 3,140 MB | 2,465 MB | 632 MB | 66 MB | 817 MB |
+| 2 Translating (avg / peak) | 3,593 / 3,685 MB | 2,897 MB peak | 2,539 MB peak | 332 MB peak | 579 MB peak | 426 MB lowest |
+| 3a Background, 5 s | 644 MB | 198 MB | 46 MB | 120 MB | 393 MB | 3,131 MB |
+| 3b Camera open, 15 s (kernel) | 31 MB | 5 MB | – | – | 532 MB | 1,928 MB |
+| 3c Camera open, 45 s (kernel) | 31 MB | 5 MB | – | – | 532 MB | 1,849 MB |
+| 3d Back, one step | 653 MB | 95 MB | 72 MB | 8 MB | 502 MB | 2,676 MB |
+| 4a Background again | 625 MB | 91 MB | 42 MB | 9 MB | 478 MB | 2,592 MB |
+| 4b / 4c Cleared | process killed | | | | | 3,006 / 2,968 MB |
+
+¹ The app was **not** killed: the same process ran from step 1 to step 4a, and the only kills in the logs are the
+script's force-stop before step 0 and the `remove task` of step 4. On Android 17 a cached app behind the camera is
+frozen (cached-app freezer), and a frozen process does not answer `dumpsys meminfo`. The Qwen run read the kernel's
+totals instead (`run-as … cat /proc/<pid>/smaps_rollup`): **frozen behind the camera, Panelglass kept ~31 MB resident
+and ~530 MB compressed in zRAM**, and came back on its own when brought to the front (3d).
+
+What changed against 2026-09-27:
+
+- **Native memory is up ~250–380 MB while translating** (Gemma 4: 905 against 591 MB; Google: 698 against 321 MB).
+  Most of it is manga-ocr, which a Japanese page loads and the Chinese page never did; the PP-OCRv6 pass (a 1.8 MB
+  model, 960 px input) is the smaller share. Separating the two needs an A/B run on the same page.
+- **The GPU footprint is unchanged** (Gemma 4: 1,893 MB idle, 1,988 MB peak, against 1,912 / 1,998 MB; Qwen:
+  2,465 / 2,539 MB, against 2,495 / 2,563 MB).
+- **Qwen is still the heaviest**: 3,685 MB at peak, and the phone went down to **426 MB available** while it
+  translated (732 MB on 2026-09-27, from a start ~0.9 GB lower this time). Nothing was killed, but this is the closest
+  to the limit of any run; on phones of this size, Automatic could reasonably take the CPU for Qwen too.
+- **Model loads are quicker**: Gemma 4 5.0 s (5.7 s), Qwen 11.5 s (14.1 s).
+- **Release in the background still works**: `onTrimMemory 20: releasing idle models` at Home, GPU memory back to
+  ~50 MB within 5 s, and the app at ~600–670 MB in the background whatever the engine.
+- **Clearing from Recents frees everything**, as before.
+- **The second pass costs ~300 ms per capture** (median 334 ms with Gemma 4 loaded, 290 ms with Google; 512 ms at most).
+- **The WebView renderer is smaller**: 54–80 MB against 150–212 MB, likely a newer WebView on Android 17.
+- **Tightest point**: with Gemma 4 translating, the phone dropped to 824 MB available (from a lower start than on
+  2026-09-27); nothing was killed.
+
 ## Comparison
 
 App PSS in MB (WebView renderer not included):
@@ -269,9 +353,9 @@ App PSS in MB (WebView renderer not included):
 With the phone attached over adb and a debuggable build installed:
 
 ```bash
-P=com.smnexstudio.panelglass
+P=com.smnexstudio.panelglass.debug                                 # the debug build's id (release: com.smnexstudio.panelglass)
 adb shell am force-stop $P
-adb shell am start -n $P/.MainActivity --es url <chapter-url> --es engine GEMMA4_LOCAL   # or QWEN15_LOCAL / GOOGLE
+adb shell am start -n $P/com.smnexstudio.panelglass.MainActivity --es url <chapter-url> --es engine GEMMA4_LOCAL   # or QWEN15_LOCAL / GOOGLE
 adb logcat -s LocalLlmEngine:I | grep "LiteRT-LM loaded"           # wait for the model
 adb shell dumpsys meminfo $P                                        # App Summary: TOTAL PSS, Graphics, Native Heap
 adb shell grep MemAvailable /proc/meminfo
@@ -282,7 +366,7 @@ adb shell dumpsys meminfo <renderer-pid>
 Then press Start, turn pages, press Home, open the camera
 (`adb shell am start -a android.media.action.STILL_IMAGE_CAMERA`), and swipe the app away in Recents, taking a
 `dumpsys meminfo` at each step. For the CPU backend, pick Settings › Models › Qwen runs on › CPU first. Clear
-`cache/patches` (`adb shell run-as com.smnexstudio.panelglass rm -rf cache/patches`) so pages are really generated.
+`cache/patches` (`adb shell run-as com.smnexstudio.panelglass.debug rm -rf cache/patches`) so pages are really generated.
 The first page load after a launch can stay black on Bilibili: ⋮ › Reload loads it. The phone's default 256 KiB log
 buffer loses pipeline lines within a minute; raise it for the run with `adb logcat -G 8M` and put it back afterwards
 (`adb logcat -G 256K`).

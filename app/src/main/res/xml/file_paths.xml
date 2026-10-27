@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="share" path="share/" />
+    <!-- AppUpdates.DIR: the downloaded release APK, handed to the package installer. -->
+    <external-files-path name="updates" path="updates/" />
 </paths>

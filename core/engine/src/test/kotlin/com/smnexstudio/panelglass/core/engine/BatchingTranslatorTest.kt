@@ -104,12 +104,39 @@ class BatchingTranslatorTest {
     fun onDeviceModelGetsOneImagePerCall() = runBlocking {
         val runner = EchoRunner()
         qwen.runnerFactory = { runner }
-        val a = async { translator.translate(job("A", "甲", "乙")) }
-        val b = async { translator.translate(job("B", "丙")) }
-        assertEquals(listOf("T:甲", "T:乙"), a.await())
-        assertEquals(listOf("T:丙"), b.await())
+        // Latin stand-ins: the echo runner's "translations" must not carry CJK, which an English line now may not hold.
+        val a = async { translator.translate(job("A", "kou", "otsu")) }
+        val b = async { translator.translate(job("B", "hei")) }
+        assertEquals(listOf("T:kou", "T:otsu"), a.await())
+        assertEquals(listOf("T:hei"), b.await())
         assertEquals(2, runner.prompts.size)
-        assertTrue(runner.prompts.none { it.contains("甲") && it.contains("丙") })
+        assertTrue(runner.prompts.none { it.contains("kou") && it.contains("hei") })
+    }
+
+    @Test
+    fun aPageOfMoreThanOneCallsItemsIsTranslatedWhole() = runBlocking {
+        val runner = EchoRunner()
+        qwen.runnerFactory = { runner }
+        val texts = (0 until BatchingTranslator.MAX_ITEMS + 5).map { "w$it" }
+        // Before: one call of MAX_ITEMS went and the last five waited for a timer that never came.
+        val out = withTimeout(10_000) { translator.translate(job("A", *texts.toTypedArray())) }
+        assertEquals(texts.map { "T:$it" }, out)
+    }
+
+    @Test
+    fun notesWithTheSameHashNeverShareACall() = runBlocking {
+        val runner = EchoRunner()
+        qwen.runnerFactory = { runner }
+        val notesA = "Series Aa notes."; val notesB = "Series BB notes."
+        assertEquals(notesA.hashCode(), notesB.hashCode())
+        val cfg = TranslateConfig(Lang.JA, Lang.EN, EngineId.QWEN15_LOCAL)
+        // Same image id: only the notes keep the two apart.
+        val a = async { translator.translate(TranslateJob("A", cfg.copy(notes = notesA), listOf(region("kou")))) }
+        val b = async { translator.translate(TranslateJob("A", cfg.copy(notes = notesB), listOf(region("hei")))) }
+        assertEquals(listOf("T:kou"), a.await())
+        assertEquals(listOf("T:hei"), b.await())
+        assertEquals(2, runner.prompts.size)
+        assertTrue(runner.prompts.none { it.contains(notesA) && it.contains(notesB) })
     }
 
     @Test
@@ -140,7 +167,7 @@ class BatchingTranslatorTest {
             gemini.baseUrl = server.url("/v1beta").toString()
             server.enqueue(MockResponse().setBody("""{"candidates":[{"content":{"parts":[{"text":"[{\"i\":0,\"source\":\"こんにちは\",\"text\":\"Hello\"},{\"i\":1,\"source\":\"ドン\",\"text\":\"BOOM\"},{\"i\":2,\"text\":\"Thanks\"}]"}]}}]}"""))
             val crop = { android.graphics.Bitmap.createBitmap(120, 200, android.graphics.Bitmap.Config.ARGB_8888) }
-            val unread = TextRegion(bbox = IntRect(0, 0, 120, 200), kind = RegionKind.ENCLOSED, text = TextLine.UNREAD)
+            val unread = TextRegion.unread(IntRect(0, 0, 120, 200), RegionKind.ENCLOSED)
             val job = TranslateJob(
                 "screen", TranslateConfig(Lang.JA, Lang.EN, EngineId.GEMINI),
                 listOf(unread, unread.copy(kind = RegionKind.SFX), region("ありがとう")),
@@ -153,6 +180,8 @@ class BatchingTranslatorTest {
             assertEquals(listOf("Hello", "BOOM", "Thanks"), out.map { it?.text })
             assertEquals(listOf("こんにちは", "ドン", null), out.map { it?.source })
             val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+            // The reply is capped by the item count: a note asking for more cannot make the call write (and bill) more.
+            assertEquals(660, body["generationConfig"]!!.jsonObject["maxOutputTokens"]!!.jsonPrimitive.content.toInt())
             val parts = body["contents"]!!.jsonArray[0].jsonObject["parts"]!!.jsonArray
             val payload = Json.parseToJsonElement(parts[0].jsonObject["text"]!!.jsonPrimitive.content).jsonArray
             assertEquals(listOf(true, true, false), payload.map { it.jsonObject["read"]?.jsonPrimitive?.content == "true" })

@@ -69,6 +69,7 @@ import dagger.hilt.android.AndroidEntryPoint
 
 import androidx.compose.runtime.collectAsState
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
+import com.smnexstudio.panelglass.core.data.update.AppUpdates
 import com.smnexstudio.panelglass.core.model.Settings
 import javax.inject.Inject
 
@@ -76,6 +77,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
     @Inject lateinit var settingsRepo: SettingsRepository
     @Inject lateinit var readerWarmup: ReaderWarmup
+    @Inject lateinit var updates: AppUpdates
     private var startUrl by mutableStateOf<String?>(null)
     private var startEngine by mutableStateOf<String?>(null)
     private var startExtras by mutableStateOf<LaunchExtras?>(null)
@@ -97,11 +99,14 @@ class MainActivity : ComponentActivity() {
             val settings by settingsRepo.settings.collectAsState(initial = Settings())
             PanelglassTheme(theme = settings.appTheme) {
                 PanelglassMain(startUrl, startEngine, startExtras)
+                // A newer release from GitHub, over whatever screen is open (AppUpdates; once a day, never in debug).
+                val update by updates.state.collectAsState()
+                UpdateHost(update, updates)
             }
         }
         // The reader's graph, bridge script and a spare WebView (with Chromium's first start) are prepared once the
         // first frame is up, so the site tap does not pay for them inside its transition.
-        window.decorView.post { readerWarmup.schedule(this) }
+        window.decorView.post { readerWarmup.schedule(this); updates.checkOnStart() }
     }
 
     override fun onDestroy() {

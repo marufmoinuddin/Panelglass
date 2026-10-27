@@ -44,6 +44,27 @@ class RegionRenderer @Inject constructor(
     private val paints = ThreadLocal.withInitial { Paints() }
 
     /**
+     * Only erases [region]: a sound effect nothing could read ([TextRegion.unreadable]) when the user replaces sound
+     * effects. Null when the eraser refuses (art too busy to repaint): unlike text, nothing is drawn in its place, so
+     * a masking panel over the art would only be a blank box.
+     */
+    fun eraseOnly(page: PixelSource, region: TextRegion, cfg: TranslateConfig, debug: ((String) -> Unit)? = null): Patch? {
+        val pad = max(MASK_PAD * 4, (minOf(region.bbox.width, region.bbox.height) * 0.1f).toInt())
+        val cropRect = region.bbox.inflate(pad).clamp(page.width, page.height)
+        if (cropRect.isEmpty) return null
+        val crop = page.crop(cropRect)
+        val erase = eraser.erase(crop, cropRect, region)
+        debug?.invoke("eraseOnly crop=$cropRect erase=${erase.method} erased=${erase.erased}")
+        if (!erase.erased) return null
+        val pixels = IntArray(crop.width * crop.height)
+        var changed = 0
+        for (i in pixels.indices) if (erase.raster.argb[i] != crop.argb[i]) { pixels[i] = erase.raster.argb[i]; changed++ }
+        if (changed == 0) return null
+        val bmp = Bitmap.createBitmap(pixels, crop.width, crop.height, Bitmap.Config.ARGB_8888)
+        return patchOf(bmp, cropRect, page, cfg)
+    }
+
+    /**
      * @param energy Sobel energy map of the page at 1/8 scale, used only for FREE placement; null skips placement.
      */
     /**
@@ -84,6 +105,11 @@ class RegionRenderer @Inject constructor(
             target = t.clamp(page.width, page.height)
             cropRect = cropRect.union(target.inflate(pad)).clamp(page.width, page.height)
         }
+        // The erase covers the whole balloon, not only the text box: a line the reading left out ("……" above the
+        // dialogue) is lettering too and stayed on the page next to the translation. The balloon's outline is kept
+        // (it touches the outside, see TextEraser); joined balloons, far wider than the text, are not taken whole.
+        val ownBalloon = region.container?.takeIf { region.kind == RegionKind.ENCLOSED && it.width <= region.bbox.width * BALLOON_MAX_WIDTH_X }
+        if (ownBalloon != null) cropRect = cropRect.union(ownBalloon.inflate(pad)).clamp(page.width, page.height)
         if ((region.kind == RegionKind.FREE) && energy != null) {
             target = FreeTextPlacer.place(energy, ENERGY_SCALE, region.bbox, region.fontSizePx.toInt(), page.width, page.height)
             cropRect = cropRect.union(target.inflate(pad)).clamp(page.width, page.height)
@@ -107,7 +133,16 @@ class RegionRenderer @Inject constructor(
         // Repaint even when the pixels could not be restored: cover the source text with an opaque panel.
         // (FreeTextMode.OVERLAY skips the inpaint attempt and goes straight to the panel.)
         val panel = !erased && region.kind != RegionKind.SFX
-        debug?.invoke("render crop=$cropRect target=$target balloon=$balloon erase=${erase?.method} erased=$erased panel=$panel maskBox=$maskBox")
+        // Balloon text goes where the Studio puts it: inside the balloon's paper, found on the erased pixels, not in its
+        // box, whose corners on an oval, a spiky shout or a slanted balloon are art (text fitted to the box ran over the
+        // outline). Of the rectangles of several shapes that fit on the paper, the one the translation letters largest
+        // in wins (one shaped like the box is small in a spiky balloon), and the lettering is clipped to the outline. A
+        // balloon whose paper is not found (a caption on art, a dark balloon) keeps its box.
+        val shape = if (erased && ownBalloon != null && region.kind == RegionKind.ENCLOSED) balloonShapeOf(raster, cropRect, ownBalloon) else null
+        val shaped = shape?.boxes
+            ?.filter { legibleIn(it, text, cfg) }
+            ?.maxByOrNull { fittedSize(it, text, region, cfg) }
+        debug?.invoke("render crop=$cropRect target=$target balloon=$balloon shaped=$shaped of ${shape?.boxes?.size ?: 0} erase=${erase?.method} erased=$erased panel=$panel maskBox=$maskBox")
 
         // The patch is transparent wherever the page is unchanged: only erased pixels, masks and lettering are
         // opaque, so overlapping patches never paint one bubble's surroundings over its neighbour's translation.
@@ -119,28 +154,45 @@ class RegionRenderer @Inject constructor(
             // Free text moves toward calmer art only when it is drawn over the untouched art; once its footprint is
             // erased or masked, that is where it goes (moved away, it sat over the art above a wiped strip).
             val placed = if (balloon == null && (panel || erased)) region.bbox else target
-            val local = (widened ?: placed).offset(-cropRect.left, -cropRect.top)
+            val local = (widened ?: shaped ?: placed).offset(-cropRect.left, -cropRect.top)
             // The translation takes the source text's place, at whatever size fits there: the art around it is untouched.
             if (panel) drawMask(canvas, maskBox.offset(-cropRect.left, -cropRect.top), region)
             val outline = !erased && !panel
             when (region.kind) {
-                RegionKind.ENCLOSED, RegionKind.CAPTION -> drawFitted(canvas, local, text, region, cfg, outline = outline, onPanel = panel, debug = debug)
+                RegionKind.ENCLOSED, RegionKind.CAPTION -> {
+                    val clip = if (shaped != null) shape?.outline?.takeIf { it.size >= 3 }?.let { pts ->
+                        Path().apply {
+                            pts.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x - cropRect.left, y - cropRect.top) else lineTo(x - cropRect.left, y - cropRect.top) }
+                            close()
+                        }
+                    } else null
+                    if (clip != null) { canvas.save(); canvas.clipPath(clip) }
+                    drawFitted(canvas, local, text, region, cfg, outline = outline, onPanel = panel, debug = debug)
+                    if (clip != null) canvas.restore()
+                }
                 RegionKind.FREE -> drawFitted(canvas, local, text, region, cfg, outline = outline, onPanel = panel, debug = debug)
                 RegionKind.IN_SCENE -> {
                     canvas.save(); canvas.rotate(region.angle, local.centerX, local.centerY)
                     drawFitted(canvas, local, text, region, cfg, outline = outline, onPanel = panel, debug = debug); canvas.restore()
                 }
-                RegionKind.SFX -> if (cfg.sfxMode == SfxMode.GLOSS) drawGloss(canvas, local, text, region)
-                else drawSfx(canvas, local, text, region, erase?.glyphMask)
+                RegionKind.SFX -> drawSfx(canvas, local, text, region, erase?.glyphMask)
             }
-            val webp = encoder.encode(bmp, cfg.patchQuality)
-            return Patch(
-                xPct = cropRect.left * 100f / page.width, yPct = cropRect.top * 100f / page.height,
-                wPct = cropRect.width * 100f / page.width, hPct = cropRect.height * 100f / page.height,
-                webp = webp,
-            )
-        } finally { bmp.recycle() }
+            return patchOf(bmp, cropRect, page, cfg)
+        } catch (t: Throwable) {
+            bmp.recycle()
+            throw t
+        }
     }
+
+    /**
+     * [bmp] at [cropRect] as a patch that owns it: the reader shows the pixels as they are, and the WEBP is encoded only
+     * when the patch cache (or the dump) asks. [bmp] is never drawn on again.
+     */
+    private fun patchOf(bmp: Bitmap, cropRect: IntRect, page: PixelSource, cfg: TranslateConfig): Patch = Patch(
+        xPct = cropRect.left * 100f / page.width, yPct = cropRect.top * 100f / page.height,
+        wPct = cropRect.width * 100f / page.width, hPct = cropRect.height * 100f / page.height,
+        image = bmp,
+    ) { encoder.encode(bmp, cfg.patchQuality) }
 
     // ---- dialogue / captions / free text ---------------------------------------------------
 
@@ -163,6 +215,27 @@ class RegionRenderer @Inject constructor(
 
     /** Ink that reads on the mask: the region's own when it contrasts, else black on a light mask, white on a dark one. */
     private fun panelInk(region: TextRegion): Int = panelInk(region.fgColor, maskColor(region))
+
+    /** The size [drawFitted] letters [text] at in [box]. */
+    private fun fittedSize(box: IntRect, text: String, region: TextRegion, cfg: TranslateConfig): Float {
+        val tp = paints.get()!!.text
+        tp.typeface = StudioFonts.typeface(cfg.fontId, cfg.tgt, bold = false, italic = false)
+        val inset = max(1, (min(box.width, box.height) * 0.04f).toInt())
+        val inner = box.inflate(-inset)
+        val maxSize = max(10f, region.fontSizePx * (if (region.container != null) 1.3f else 1.2f))
+        TextFit.fit(text, inner.width.coerceAtLeast(8), inner.height.coerceAtLeast(8), tp, maxSize, min(MIN_LEGIBLE_PX, maxSize), null)
+        return tp.textSize
+    }
+
+    /** Whether [text] fits [box] (inset as [drawFitted] insets it) at [MIN_LEGIBLE_PX], whole words and all. */
+    private fun legibleIn(box: IntRect, text: String, cfg: TranslateConfig): Boolean {
+        val tp = paints.get()!!.text
+        tp.typeface = StudioFonts.typeface(cfg.fontId, cfg.tgt, bold = false, italic = false)
+        tp.textSize = MIN_LEGIBLE_PX
+        val inset = max(1, (min(box.width, box.height) * 0.04f).toInt())
+        val inner = box.inflate(-inset)
+        return TextFit.fitsAt(text, inner.width.coerceAtLeast(8), inner.height.coerceAtLeast(8), tp)
+    }
 
     private fun drawFitted(canvas: Canvas, box: IntRect, text: String, region: TextRegion, cfg: TranslateConfig, outline: Boolean, onPanel: Boolean = false, debug: ((String) -> Unit)? = null) {
         val p = paints.get()!!
@@ -228,21 +301,6 @@ class RegionRenderer @Inject constructor(
 
     // ---- sound effects ---------------------------------------------------------------------
 
-    /** Small outlined label at the bottom edge of the effect: readable without pretending to be lettering. */
-    private fun drawGloss(canvas: Canvas, box: IntRect, text: String, region: TextRegion) {
-        val p = paints.get()!!
-        val tp = p.text; val sp = p.stroke
-        tp.typeface = Fonts.sfx(); sp.typeface = tp.typeface
-        tp.textSize = max(11f, region.fontSizePx * 0.35f); sp.textSize = tp.textSize
-        tp.color = Color.BLACK; sp.color = Color.WHITE; sp.strokeWidth = 3f
-        tp.textAlign = Paint.Align.CENTER; sp.textAlign = Paint.Align.CENTER
-        val label = text.uppercase()
-        val y = box.bottom.toFloat() - tp.descent()
-        canvas.drawText(label, box.centerX, y, sp)
-        canvas.drawText(label, box.centerX, y, tp)
-        tp.textAlign = Paint.Align.LEFT; sp.textAlign = Paint.Align.LEFT
-    }
-
     /**
      * Overlay the English effect on the original lettering. Geometry comes from PCA over the glyph
      * mask: rotation from the principal axis, size from the extents, area matched to the original.
@@ -298,6 +356,34 @@ class RegionRenderer @Inject constructor(
     private fun darkOrLight(fg: Int) = if (Raster.lum(fg) < 128) Color.BLACK else Color.WHITE
 
     companion object {
+        /** A balloon found on erased pixels, in page pixels: rectangles text may go in, and its traced outline. */
+        internal class BalloonShape(val boxes: List<IntRect>, val outline: List<Pair<Float, Float>>)
+
+        /**
+         * [balloon] (page pixels) on the erased [raster] (the crop at [cropRect]): the largest centred rectangle of each
+         * shape in [BALLOON_ASPECTS] on its paper ([BalloonFit.shape]) and its outline. Null when the balloon is not in the
+         * crop or its paper is not found from near its centre. The rectangles are not inset: [drawFitted] insets once.
+         */
+        internal fun balloonShapeOf(raster: Raster, cropRect: IntRect, balloon: IntRect): BalloonShape? {
+            val b = balloon.intersect(cropRect)?.takeIf { !it.isEmpty } ?: return null
+            val bx = b.left - cropRect.left; val by = b.top - cropRect.top
+            if (bx + b.width > raster.width || by + b.height > raster.height) return null
+            val px = IntArray(b.width * b.height)
+            for (y in 0 until b.height) System.arraycopy(raster.argb, (by + y) * raster.width + bx, px, y * b.width, b.width)
+            val s = BalloonFit.shape(px, b.width, b.height, BALLOON_ASPECTS, insetShare = 0f) ?: return null
+            val boxes = s.boxes
+                .filter { it.width >= MIN_BALLOON_BOX_PX && it.height >= MIN_BALLOON_BOX_PX }
+                .map { r -> IntRect(b.left + r.left.toInt(), b.top + r.top.toInt(), b.left + r.right.toInt(), b.top + r.bottom.toInt()) }
+            if (boxes.isEmpty()) return null
+            return BalloonShape(boxes, s.outline.map { (x, y) -> (b.left + x) to (b.top + y) })
+        }
+
+        /** Width : height ratios tried inside a balloon (null: the box's own). */
+        private val BALLOON_ASPECTS = listOf(null, 0.5f, 0.75f, 1f, 1.33f, 2f)
+
+        /** A rectangle narrower or lower than this is no place to letter. */
+        private const val MIN_BALLOON_BOX_PX = 16f
+
         /**
          * [fg] when it stands out from [bg]; otherwise the opposite of [bg]. (Not [darkOrLight] of the background:
          * that matches its tone, and a light-grey caption on a white mask came out white on white — a blank bar.)
