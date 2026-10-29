@@ -85,7 +85,8 @@ original leaves out and keeps what it states.
 **Settings › Translation notes** apply to every series; series notes add to them. Short, factual lines work best,
 especially for the on-device models (each note is capped at 500 characters).
 
-A good starting point:
+Settings starts with these notes (`TranslationNotes.DEFAULT`); edit them, or empty them to send none (emptied
+notes stay empty):
 
 ```
 Natural, casual English dialogue. Keep honorifics (-san, -sama, senpai).

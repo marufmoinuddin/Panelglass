@@ -34,7 +34,7 @@ data class Settings(
     /** Where Qwen runs; [QwenBackend.AUTO] decides by the phone's RAM. */
     val qwenBackend: QwenBackend = QwenBackend.AUTO,
     /** Notes for the AI engines on every series (tone, honorifics); a series adds its own in the reader. */
-    val translationNotes: String = "",
+    val translationNotes: String = TranslationNotes.DEFAULT,
     /** Ask GitHub for a newer release once a day at start (Settings › About); the manual check works either way. */
     val autoUpdateCheck: Boolean = true,
 ) {

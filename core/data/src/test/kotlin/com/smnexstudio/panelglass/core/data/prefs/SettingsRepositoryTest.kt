@@ -95,6 +95,14 @@ class SettingsRepositoryTest {
         assertEquals(Settings().appTheme, s.appTheme)
     }
 
+    /** Notes never saved read as the default; notes the user cleared stay empty and never come back. */
+    @Test fun translationNotesStartWithTheDefaultAndClearedNotesStayEmpty() = runBlocking {
+        assertEquals(TranslationNotes.DEFAULT, repo.current().translationNotes)
+        assertTrue(TranslationNotes.DEFAULT.length <= TranslationNotes.MAX_CHARS)
+        repo.setTranslationNotes("")
+        assertEquals("", repo.current().translationNotes)
+    }
+
     @Test fun translationNotesAreTrimmedAndCapped() = runBlocking {
         repo.setTranslationNotes("  " + "n".repeat(TranslationNotes.MAX_CHARS + 50) + "  ")
         assertEquals(TranslationNotes.MAX_CHARS, repo.current().translationNotes.length)
