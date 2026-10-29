@@ -38,6 +38,7 @@ dependencies {
     implementation(project(":core:render"))
     implementation(project(":core:engine"))
 
+    testImplementation(libs.okhttp)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.vintage)
     testRuntimeOnly(libs.junit.platform.launcher)

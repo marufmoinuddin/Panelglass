@@ -14,6 +14,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 dependencies {
@@ -28,4 +32,10 @@ dependencies {
     api(project(":core:model"))
     // The Studio's fonts, for the font picker Settings and the Studio share (fonts/FontBrowser.kt).
     implementation(project(":core:render"))
+
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit.vintage)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }

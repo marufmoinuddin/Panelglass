@@ -23,6 +23,8 @@ class CachedPage(val width: Int, val height: Int, val regionCount: Int, val patc
 class PatchCache(
     private val dir: File,
     private val maxBytes: Long = 500L * 1024 * 1024,
+    /** The LRU clock written into each file's mtime; tests step it instead of waiting out the mtime resolution. */
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val mutex = Mutex()
     private var totalBytes: Long = -1
@@ -61,7 +63,7 @@ class PatchCache(
             }
         }.getOrElse { f.delete(); null }?.also {
             // LRU order is the mtime; touch only after the stream is closed (Windows refuses otherwise).
-            f.setLastModified(System.currentTimeMillis())
+            f.setLastModified(now())
         }
     }
 
@@ -84,6 +86,7 @@ class PatchCache(
                 }
             }
             if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+            f.setLastModified(now())
             totalBytes += f.length() - previous
             evictIfNeeded()
         }

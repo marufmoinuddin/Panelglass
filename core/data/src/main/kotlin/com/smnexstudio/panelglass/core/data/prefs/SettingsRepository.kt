@@ -68,7 +68,11 @@ class SettingsRepository @Inject constructor(
             models = EngineId.entries.mapNotNull { id -> p[K.model(id)]?.let { id to it } }.toMap(),
             contextMode = p[K.contextMode]?.let { enumOrNull<ContextMode>(it) } ?: d.contextMode,
             adBlockDefault = p[K.adBlock] ?: d.adBlockDefault,
-            readerFontId = p[K.readerFont]?.ifEmpty { null } ?: p[K.font]?.let { BubbleFont.fromName(it)?.fontId } ?: d.readerFontId,
+            // "" is Auto, a choice like any other: only a phone that never chose (no key) reads the font saved before.
+            readerFontId = when (val id = p[K.readerFont]) {
+                null -> p[K.font]?.let { BubbleFont.fromName(it)?.fontId } ?: d.readerFontId
+                else -> id.ifEmpty { null }
+            },
             sfxMode = p[K.sfx]?.let { enumOrNull<SfxMode>(it) } ?: d.sfxMode,
             freeTextMode = p[K.free]?.let { enumOrNull<FreeTextMode>(it) } ?: d.freeTextMode,
             patchQuality = p[K.quality] ?: d.patchQuality,

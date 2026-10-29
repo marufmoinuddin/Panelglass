@@ -104,6 +104,8 @@ class TranslationPipeline @Inject constructor(
     /** Patch-cache writes: they encode every patch's WEBP, which nothing on screen waits for. */
     private val cacheWrites = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val series = SeriesResolver(glossary)
+    /** The reader's per-group translate cap ([STAGE_TIMEOUT_MS]); tests shorten it. */
+    internal var stageTimeoutMs = STAGE_TIMEOUT_MS
 
     suspend fun translate(
         source: ImageSource,
@@ -293,7 +295,7 @@ class TranslationPipeline @Inject constructor(
      */
     private suspend fun translateGroups(
         regions: MutableList<TextRegion>, crops: Map<Int, Bitmap>, cfg: TranslateConfig, priorContext: List<ContextPair>,
-        started: Long, onStage: (Stage) -> Unit, timeoutMs: Long = STAGE_TIMEOUT_MS,
+        started: Long, onStage: (Stage) -> Unit, timeoutMs: Long = stageTimeoutMs,
         onGroup: suspend (group: List<Int>, translated: Array<String?>) -> Unit,
     ): GroupsOutcome {
         val groups = if (cfg.engineId.isLocalLlm && regions.size > LOCAL_GROUP)

@@ -38,20 +38,25 @@ import com.smnexstudio.panelglass.core.ui.R as UiR
  * (Cancel), install, and the results of a check from Settings. Nothing shows while it is [UpdateState.Idle].
  */
 @Composable
-fun UpdateHost(state: UpdateState, updates: AppUpdates) {
+fun UpdateHost(state: UpdateState, updates: AppUpdates) =
+    UpdateHost(state, onUpdate = updates::download, onDismiss = updates::dismiss, onCancel = updates::cancel)
+
+/** [UpdateHost] with its actions as callbacks: Update / Retry ([onUpdate]), Later / Close ([onDismiss]), Cancel ([onCancel]). */
+@Composable
+internal fun UpdateHost(state: UpdateState, onUpdate: () -> Unit, onDismiss: () -> Unit, onCancel: () -> Unit) {
     val context = LocalContext.current
     when (state) {
         UpdateState.Idle -> Unit
-        UpdateState.Checking -> Message(stringResource(UiR.string.update_checking), null, updates::cancel, stringResource(UiR.string.action_cancel))
-        is UpdateState.UpToDate -> Message(stringResource(UiR.string.update_up_to_date, state.current), null, updates::dismiss, stringResource(UiR.string.action_close))
-        is UpdateState.Available -> StickerDialog(updates::dismiss) {
+        UpdateState.Checking -> Message(stringResource(UiR.string.update_checking), null, onCancel, stringResource(UiR.string.action_cancel))
+        is UpdateState.UpToDate -> Message(stringResource(UiR.string.update_up_to_date, state.current), null, onDismiss, stringResource(UiR.string.action_close))
+        is UpdateState.Available -> StickerDialog(onDismiss) {
             Title(stringResource(UiR.string.update_available_title))
             Body(stringResource(UiR.string.update_available_message, state.release.version, state.current))
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                TextAction(stringResource(UiR.string.update_later), Tokens.InkSoft, updates::dismiss)
+                TextAction(stringResource(UiR.string.update_later), Tokens.InkSoft, onDismiss)
                 Spacer(Modifier.width(8.dp))
-                PrimaryPill(stringResource(UiR.string.update_action).uppercase(), letterSpaced = true, onClick = updates::download)
+                PrimaryPill(stringResource(UiR.string.update_action).uppercase(), letterSpaced = true, onClick = onUpdate)
             }
         }
         is UpdateState.Downloading -> StickerDialog(onDismiss = {}) {
@@ -62,24 +67,24 @@ fun UpdateHost(state: UpdateState, updates: AppUpdates) {
             Body(stringResource(UiR.string.update_progress, Formatter.formatShortFileSize(context, state.bytes), Formatter.formatShortFileSize(context, state.total)))
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextAction(stringResource(UiR.string.action_cancel), Tokens.InkSoft, updates::cancel)
+                TextAction(stringResource(UiR.string.action_cancel), Tokens.InkSoft, onCancel)
             }
         }
-        is UpdateState.Ready -> StickerDialog(updates::dismiss) {
+        is UpdateState.Ready -> StickerDialog(onDismiss) {
             Title(stringResource(UiR.string.update_ready_title))
             Body(stringResource(UiR.string.update_ready_message, state.release.version))
             Body(stringResource(UiR.string.update_install_permission))
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                TextAction(stringResource(UiR.string.update_later), Tokens.InkSoft, updates::dismiss)
+                TextAction(stringResource(UiR.string.update_later), Tokens.InkSoft, onDismiss)
                 Spacer(Modifier.width(8.dp))
                 PrimaryPill(stringResource(UiR.string.update_install).uppercase(), letterSpaced = true, onClick = { (context as? Activity)?.let { install(it, state.apk) } })
             }
         }
         is UpdateState.Failed -> Message(
             stringResource(if (state.release == null) UiR.string.update_failed_check else UiR.string.update_failed_download),
-            if (state.release != null) ({ updates.download() } to stringResource(UiR.string.action_retry)) else null,
-            updates::dismiss, stringResource(UiR.string.action_close),
+            if (state.release != null) (onUpdate to stringResource(UiR.string.action_retry)) else null,
+            onDismiss, stringResource(UiR.string.action_close),
         )
     }
 }

@@ -12,7 +12,6 @@ import com.smnexstudio.panelglass.core.engine.local.ModelStores
 import com.smnexstudio.panelglass.core.engine.local.LocalModel
 import com.smnexstudio.panelglass.core.engine.mt.LanguagePackStore
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
-import com.smnexstudio.panelglass.core.model.EngineId
 import com.smnexstudio.panelglass.core.model.ModelState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,17 +63,15 @@ class PanelglassApp : Application() {
      * Google Translate is the default engine, so its Japanese, Korean and Chinese packs (~30 MB each; English is built
      * in) are fetched at first start, over any network, and retried at each start until they are all there. Every
      * other language is downloaded only when the user asks (Settings, or the Download a missing pack offers).
-     *
-     * Someone who installed before Google Translate became the default and never picked an engine was on Qwen: when
-     * the Qwen model is on the phone, that choice is written down so the new default does not switch them.
+     * [StartupTasks] also keeps Qwen for someone who was on it before the default changed.
      */
     private fun startupDownloads() {
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            if (!settingsRepo.hasEngineChoice() && modelStores[LocalModel.QWEN15].state.value !is ModelState.Missing) {
-                settingsRepo.setEngine(EngineId.QWEN15_LOCAL)
-            }
-            if (!settingsRepo.automaticPacksDone() && packs.ensureAutomatic()) settingsRepo.setAutomaticPacksDone()
-        }
+        val tasks = StartupTasks(
+            settingsRepo,
+            qwenOnPhone = { modelStores[LocalModel.QWEN15].state.value !is ModelState.Missing },
+            fetchAutomaticPacks = { packs.ensureAutomatic() },
+        )
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { tasks.run() }
     }
 
     /**

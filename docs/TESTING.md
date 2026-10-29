@@ -3,16 +3,20 @@
 What the automated tests cover, how to run them, and the checks that still need a phone. The architecture under test
 is in [ARCHITECTURE.md](ARCHITECTURE.md); the translation flow in [FLOW.md](FLOW.md).
 
-Counts as of 2026-10-18: **436 unit tests** in 75 classes, **2 instrumented tests**, all passing.
+Counts as of 2026-10-29: **661 unit tests** in 103 classes, all passing; **2 instrumented tests** (need a device, not run
+in CI). Line coverage of the JVM tests, measured by JaCoCo: 56.9% of all code (branch 41.7%): 66.9% of the logic and
+41.8% of the Compose UI; per module in the test report.
 
 ## Contents
 
 - [Running the tests](#running-the-tests)
+- [Test report and CI](#test-report-and-ci)
 - [How the tests are built](#how-the-tests-are-built)
 - [Unit tests by module](#unit-tests-by-module)
 - [Instrumented tests](#instrumented-tests)
 - [Checks on a phone](#checks-on-a-phone)
 - [Not covered](#not-covered)
+- [Known flaky test](#known-flaky-test)
 - [Adding a test](#adding-a-test)
 
 ## Running the tests
@@ -24,12 +28,40 @@ Counts as of 2026-10-18: **436 unit tests** in 75 classes, **2 instrumented test
 ./gradlew :core:pipeline:connectedDebugAndroidTest     # whole pipeline, on a device
 ```
 
+```bash
+./gradlew jacocoUnitTestReport                         # coverage, after the tests, in its own invocation
+python3 tools/test-report/report.py --root . --out build/test-report   # HTML report: expected vs actual per test
+```
+
 `:core:model` is a plain Kotlin module: its tests run under `test`, not `testDebugUnitTest`, so name it explicitly.
 Reports land in `<module>/build/reports/tests/`. CI (`.github/workflows/ci.yml`) runs the unit tests and a debug
 build for every pull request into `main` and every push to `main`; the instrumented tests need a device and are run
 by hand.
 
 If the build fails with "jlink executable … does not exist", see [CONTRIBUTING.md › Building](../CONTRIBUTING.md#building).
+
+## Test report and CI
+
+- **Coverage**: Gradle's own JaCoCo plugin (no added dependency, root `build.gradle.kts`). Every JVM test task runs
+  with the agent; `jacocoUnitTestReport` in each module writes XML and CSV for that module's classes, crediting any
+  module's tests that ran them. It reads other modules' test runs, so run it after the tests in its own invocation.
+  Coverage is reported, never a gate: a line run is not a behaviour checked.
+- **Report** (`tools/test-report/report.py`, Python standard library only): reads the JUnit XML results, the JaCoCo
+  CSVs and the test sources. For every test it shows **Expected** (the test's KDoc, else its name read as a sentence),
+  **Actual** (every assertion held, or the failed assertion's own expected and actual values and message) and a
+  **PASS / FAIL / SKIP** verdict, with per-module counts and coverage, a filter and a search. Coverage is given
+  three ways: all code, **logic** and **Compose UI** (the classes of files that declare `@Composable` functions; view
+  models and everything else are logic), so well-tested logic is not hidden behind untested UI. It writes
+  `test-report.html`, `summary.md` (for a pull request) and `results.json`; exit code 1 when a test failed or none ran.
+- **CI** (`.github/workflows/ci.yml`): every pull request into `main` and every push to `main` runs all JVM tests
+  (`--continue`, so every module reports), coverage, the report, then the debug build. The report is uploaded as the
+  `test-report` artifact (30 days), the raw JUnit and JaCoCo XML as `test-results` (30 days), and its summary written
+  to the run's summary page. On a pull request a separate
+  `report` job, the only one allowed to write to the pull request and never running its code, posts the verdict, the
+  per-module table and every failed test's expected and actual as **one comment, edited on each push** (marker
+  `<!-- panelglass-test-report -->`), linking to the HTML report. GitHub cannot attach a file to a comment, so the HTML
+  is the linked artifact (a zip; open `test-report.html`). A fork's pull request has a read-only token: no comment,
+  the verdict stays in the run's summary. Instrumented tests are not run in CI.
 
 ## How the tests are built
 
@@ -44,11 +76,28 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
   `testSettings()` (a real `SettingsRepository` on it), `testKeyStore()` (a `SecureKeyStore` with reversible
   "encryption", since the JVM has no AndroidKeyStore), `testSupport()` (OkHttp + JSON for the HTTP engines).
 - **Device RAM** is set with Robolectric's `ShadowActivityManager.setMemoryInfo` to test RAM-dependent choices.
+- **No live network.** HTTP goes to MockWebServer, or an OkHttp interceptor that answers (or fails) each request
+  (`AppUpdatesTest` routes GitHub's hosts to a local server; `OfflineEnginesTest` fails every request and checks none
+  was tried).
+- **Time through seams, not sleeps**: `AppUpdates(now)`, `PatchCache(now)`, `BlockListRepository.now`,
+  `TranslationPipeline.stageTimeoutMs`, `LocalEngines.releaseGraceMs`, and a virtual-time main dispatcher for view
+  models (`ReviewSavingTest`). A wait is on a condition with a timeout, never a fixed delay.
+- **Preferences**: tests that write more than once use an in-memory DataStore (`MemoryDataStore`, one per module's
+  tests): a file-backed one cannot replace its file on Windows.
+- **View models** run on `Dispatchers.setMain(UnconfinedTestDispatcher())` with the real repositories on Room in
+  memory; `onCleared` is reached through a `ViewModelStore`. A view model built by hand is kept in `TestViewModels`
+  (one per feature module's tests) and cleared before the database closes: a scope left running queries a closed
+  database and fails a later test.
+- **Compose screens** run on Robolectric with their real view model (`SettingsRig`, `ExportRig`, or the repositories
+  directly), and a click is the node's own semantics action (a sheet or dialog still animating would miss an injected
+  touch). Room answers on its own threads, so a check waits on a condition with real time between tries
+  (`eventually`); the database is closed by an outer rule (`RuleChain`), after the compose rule has disposed the
+  screen.
 - **Pixels** are synthetic: bubbles, hatched art, grey boxes and text drawn onto bitmaps in the test.
 
 ## Unit tests by module
 
-### core:model (35)
+### core:model (44)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -62,7 +111,7 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `ReadStateTest` | 3 | Only the read state marks a region unread or unreadable, never its text; a Studio region saved before the state existed is upgraded from its filler text; a region with a state round-trips unchanged |
 | `WebUrlTest` | 6 | https only: https kept, http upgraded, a bare host gets `https://`, whitespace trimmed; `javascript:`/`file:`/`content:`/`intent:`/`data:` and non-URLs are null |
 
-### core:data (34)
+### core:data (79)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -70,11 +119,15 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `Migration4To5Test` | 2 | A version-4 database opened by the app: glossary entries survive without a pronoun and take one; series notes are stored, read and removed per series |
 | `RetiredSfxModeTest` | 3 | Studio effects saved as Gloss or Overlay (removed) open as Replace with their text and transform kept; Overlay, never written, reads as Replace; Keep and Replace read as saved |
 | `StudioDaoTest` | 14 | Studio library (Robolectric, in-memory Room): an import numbers its pages and counts them; appended pages and new chapters go last; reviewed progress; reordering pages and chapters sticks; moving pages renumbers both chapters and leaves the files; deleting pages, a chapter or a manga cascades to rows and files; a chapter moves to another manga; the orphan sweep spares saved and in-flight pages; JSON columns round-trip; paths outside the Studio root are refused |
-| `PatchCacheTest` | 5 | Round-trip of patch geometry and bytes; LRU eviction over budget; a corrupt file is dropped, not thrown; an out-of-range length is refused before allocating and the file deleted; the key includes everything that changes rendering, the reader's font too |
-| `ReleaseInfoTest` | 7 | In-app updates: GitHub's latest-release reply is read; drafts, pre-releases and a release without its `.sha256` are not offered; an APK URL outside this repository's https releases is refused; versions compare as numbers; the checksum line is matched by file name; a tag with a suffix (`v0.3.0-test`) is not a release; installed, older and interrupted downloads are spent, a newer APK is kept |
+| `PatchCacheTest` | 5 | Round-trip of patch geometry and bytes; LRU eviction over budget (on a stepped clock, no sleeps); a corrupt file is dropped, not thrown; an out-of-range length is refused before allocating and the file deleted; the key includes everything that changes rendering, the reader's font too |
+| `ReleaseInfoTest` | 11 | In-app updates: GitHub's latest-release reply is read; drafts, pre-releases and a release without its `.sha256` are not offered; an APK URL that leaves this repository's releases once resolved (`..`, encoded dots, `%2F`, a query, a fragment, a user or a port) is refused, as is one outside this repository's https releases is refused; versions compare as numbers; the checksum line is matched by file name; a tag with a suffix (`v0.3.0-test`) is not a release; installed, older and interrupted downloads are spent, a newer APK is kept; missing or odd optional fields are read or refused without throwing; only a release-shaped reply counts as an answer; nothing is newer than an installed version that cannot be read |
+| `AppUpdatesTest` | 20 | The update flow against a local server standing in for GitHub (no internet): a newer release is offered and the check remembered, with GitHub's media type and nothing about the user; the same, older, pre-release or asset-less release is up to date; an unreadable installed version is never offered an update; HTTP 403, 404, 429, 500, 502, 503, an HTML page, an empty or cut reply, no connection, a refused connection and a server that never answers are a failed check, never "up to date", and not remembered; repeated checks end with one answer; at start nothing happens in a debug build, with the check turned off or within a day, a failure shows nothing and is retried next start, only a newer release is shown; spent APKs and `.part` files are deleted at start; a verified download is ready for the installer, a checksum mismatch or a missing checksum fails with nothing handed over, an earlier finished download is reused; Cancel and a check during the download remove the system download; Later is ignored while downloading |
+| `SettingsRepositoryTest` | 11 | Settings as stored across releases: defaults on a fresh install; a removed engine (Qwen 0.5B, Gemma 3) reads as the default; removed sound-effect modes read as Replace; a retired Gemini model resolves to the current default, blank clears; a font saved before the catalogue reads as its catalogue id, and Auto chosen afterwards sticks; unknown values fall back; notes trimmed and capped; update settings, the automatic-packs flag, per-model request profiles and favourite fonts round-trip |
+| `SystemDownloadsQueueTest` | 5 | DownloadManager bookkeeping (Robolectric's): a download is queued once and remembered across restarts; a stale half file is cleared when one starts; cancel removes and forgets it; following a download never started fails; one the system lost is reported and forgotten, never awaited forever |
+| `UnmigratedVersionsTest` | 2 | The database as the app opens it (`DataModule.db`): a version with no migration (2) and a newer one (an older APK over a newer build) are rebuilt empty at version 5 and usable, not a crashed launch |
 | `SystemDownloadsIntegrityTest` | 4 | A download matching its SHA-256 is moved into place and remembered; a mismatch is deleted, never placed; a file already on disk is checked once; a file changed after its check is checked again |
 
-### core:engine (82)
+### core:engine (106)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -88,8 +141,11 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `BatchingTranslatorTest` | 6 | A page of more than one call's items (60) is translated whole; Gemini reads unread regions from their crops and returns what it read (its request capped at the items' output budget); an on-device model gets one image per call; two series whose notes have the same hash never share a call; a failure surfaces typed instead of switching provider; a cancelled caller cancels its generation |
 | `SfxDictionaryTest` | 4 | The bundled SFX tables: hiragana finds the katakana entry; another ッ or ー still matches (ガツーン → ガツン); other words miss; both tables parse with a rendering for every entry |
 | `LanguagePackStoreTest` | 6 | Google Translate packs: every app language once (Chinese variants share a pack); only Japanese, Korean and Chinese download automatically; any other pack is missing until the user downloads it, and asking never downloads; English and packs already present are never fetched; a failure is reported for that language only; delete removes one pack, never English |
+| `HttpFailureWireTest` | 8 | Cloud failures through Retrofit and OkHttp, not the status mapper alone: a server that never answers and a dropped connection are `Network`; 429 carries the server's Retry-After, a quota 429 is `QuotaExceeded`; 500/502/503/504 are `Overloaded` with the provider's message; a 200 that is no JSON (a captive portal) is `Malformed`, never an untyped exception; an overloaded provider is retried on the same engine and model, retries are bounded, a rejected key is never retried |
+| `OfflineEnginesTest` | 4 | Airplane mode with every HTTP request failing: Google Translate (packs on the phone) and both on-device models warm up and translate without trying a single request; the cloud engine fails as its own `Network` failure, no fallback; its warm-up offline is silent |
+| `ModelPinningTest` | 3 | Every on-device model's URL is https and pinned to a 40-hex commit, with a 64-hex SHA-256 and sane sizes; files, hashes and engines are distinct; a retired model's file is no current model's |
 
-### core:ocr (40)
+### core:ocr (45)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -103,8 +159,9 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `MangaOcrRepeatTest` | 3 | A looped sentence collapses to one; a partial repeat cut by the token cap is dropped only when truncated; short real repeats are kept |
 | `UprightTiltTest` | 3 | ML Kit's angle as a tilt from upright: a vertical column (±90°) and upside-down text are upright; a real tilt is kept |
 | `PanelCutterTest` | 2 | Synthetic panels detected and regions ordered by panel, right to left for manga |
+| `ModelPinningTest` | 2 | manga-ocr's and LaMa's download bases are pinned to a commit; LaMa's hash and size floor are sane |
 
-### core:render (45)
+### core:render (62)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -119,8 +176,9 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `TextEraserTest` | 8 | Bubble glyphs filled with the background; a text box as large as the balloon still erases the ink; bright halo uses the halo fill; inpainting on a smooth gradient is accepted, a smear over busy art rejected; mask rotation recovered; light lettering in a thick dark outline loses the outline too (the mask reaches with the glyph size) |
 | `LongestRunTest` | 5 | The unbreakable run the text fitter tests: an English word with its punctuation; hyphens break; ellipses and quotes do not join words; CJK breaks between any two characters |
 | `PanelInkTest` | 3 | Ink on a mask: contrasting ink kept, otherwise black on a light mask and white on a dark one |
+| `RegionRendererTest` | 6 | The reader's patches on synthetic pages: balloon text becomes a patch over the whole balloon, its bitmap the patch's size; outside the balloon the patch is transparent or the art's own colour, never painted; nothing is drawn for an empty translation, free text off or sound effects kept; overlay mode covers free text; an unreadable effect is erased to its background; an erase that changes nothing is no patch |
 
-### feature:browser (26)
+### feature:browser (49)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -130,8 +188,10 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `SeriesMemoryTest` | 2 | Glossary edits (Robolectric, in-memory Room): nothing is saved before the series is known; terms are trimmed and saved to the current series, a term with no rendering is not, and the writes are handed over once |
 | `ContentChangeTest` | 4 | Page turn without a scroll: another page is a change; our own patches and a fading control are not; all-patched cannot tell |
 | `SameSiteTest` | 3 | Same-site test for pop-ups: subdomains share a site, public suffixes do not; case and trailing dot ignored |
+| `NavigationPolicyTest` | 11 | The WebView's policy (Robolectric `WebView`): non-web schemes (`javascript:`, `intent:`, `market:`, `file:`, `data:`, `content:`, custom) never load or leave the app; only a tapped `mailto:`/`tel:`/`sms:` opens another app; an http link is followed as https, a redirect down to http is not upgraded; same-site https loads; a script-driven cross-site navigation is a blocked pop-up, a tapped one or a redirect is not; a blocked host never gets the main frame, even on a tap; sub-frames are left alone; only a tapped same-site https new window opens; blocked sub-requests get an empty body of the expected type; a new page resets the count |
+| `BlockListRepositoryTest` | 6 | The runtime block lists (an interceptor answers each URL): AdGuard failing falls back to StevenBlack; a list too small to be real is refused; offline, the cached lists are loaded and kept; one source failing keeps its last copy in the merge; the legacy cache file seeds the ad list; a stale list is refreshed on load and replaced |
 
-### feature:studio (100)
+### feature:studio (183)
 
 | Class | Tests | Covers |
 |---|---|---|
@@ -154,17 +214,54 @@ If the build fails with "jlink executable … does not exist", see [CONTRIBUTING
 | `CbzImporterTest` | 15 | CBZ through `CbzReader` and `PageStager`: natural page order; `__MACOSX`, hidden and non-image entries skipped; entry names never become paths (zip-slip); ComicInfo.xml read, an oversized one ignored; an oversized entry (streamed or declared) refuses the archive; a zip bomb in a skipped entry stops at the total cap; too many entries refused; an over-pixel page skipped; GIF / AVIF / animated WebP converted; a fake image skipped; not a zip refused; only `.cbz` names are taken; `readAtMost` (the API 31 stand-in for `readNBytes`) across short reads |
 | `ImageHeaderTest` | 7 | Size and format from the header alone: PNG, JPEG past a large EXIF segment, the three WebP forms; animated WebP, GIF and AVIF are converted, still images copied; HEIC and junk are not images |
 | `ImageImporterTest` | 8 | Twenty picked images keep the natural order and their bytes; a preview reorder sticks; over-cap, oversized and HEIC files are refused without leaving a file; converted formats have their own cap; an undecodable file is skipped; discarded pages are deleted; series / chapter / volume guessed from file names; PDF pages rendered at 2×, capped at 2000 px wide and by pixels |
+| `StudioImporterTest` | 9 | The import orchestrator over content URIs (a fake documents provider): picked images staged in natural order with progress; an unreadable file skipped and the rest imported; a pick with no image refused and nothing left; too many pages refused before staging; a cancelled import leaves no page directory; a CBZ staged with its ComicInfo and title; a `.zip` refused by name; a CBZ without pages refused; discard deletes staged pages |
+| `ReviewPanelsTest` | 22 | The review editor's panes in Compose, each hosted with its value in state: bold, italic and capitals switch on their own; Auto size toggles with 32 px; an outline offers its colour, none removes it; "Every bubble" applies at once and keeps applying; Auto text colour; the colour picker previews a typed hex code and Cancel restores, Use keeps it; a fill starts opaque white, No fill clears it; reshape presets and a border with its colour row; brush mode, size, stroke count and undo (none without strokes); Add as text or effect; a sound effect's Keep hides the replacement controls, bold and double outline toggle, a preset is recorded, Remember until remembered; the Bubble tab's hint, both text fields, re-translate, Not text, delete only after confirming, a dismissed bubble's Restore; Proofread numbers (none for a dismissed bubble), the effects-only filter and selection; the header's bubble stepper and tab switch |
+| `ExportViewModelTest` | 9 | The export view model over the real exporter and plain directories: chapters with translated pages start ticked, or only the chapter the screen was opened for; select all / none / one; Next needs a ticked chapter and Back steps one at a time, the plan naming `Ch 001/` (Images by default); an export writes the chosen format and remembers format and quality; a finished export is not shown on the next visit; Export again returns to the list; a folder that cannot be kept is refused and Downloads restores; a picked folder is used, named and kept for the manga |
+| `ExportScreenTest` | 5 | The export screen in Compose end to end: an untranslated chapter is marked and Next disabled; the whole flow writes a ZIP of smaller pages and Done leaves; Back in a step returns to the list; the confirm step warns about a file it replaces; Select all ticks every chapter with pages |
+| `ImportViewModelTest` | 11 | One import from pick to save over the real importer and Room: the picker is not opened again when the screen is rebuilt from its saved state; picked images become a new manga in the order shown, a new manga needing a title; pages reordered and removed before saving (a removed page's directory deleted), Settings' source language prefilled; a CBZ's ComicInfo names series, number and title and joins the manga of that title; an existing manga suggests the next chapter number; a folder per chapter becomes one chapter each; pages added to a chapter join it; a refused pick says why and stages nothing; an empty pick does nothing; leaving before saving deletes the staged pages; saving twice saves once |
+| `FontsViewModelTest` | 6 | My fonts over the real font store (Comic Neue from `core:render`'s assets, native graphics): a picked font is added under its family name with its scripts; a second style joins its family; the same file again and a file that is no font are refused; an empty pick does nothing; rename, role and delete with its files (the file check is skipped on Windows, which cannot delete a font the process has loaded); a blank name is ignored |
+| `ReviewSavingTest` | 5 | The review editor never loses typing (Room in memory, virtual time): a translation is saved when typing pauses (400 ms), not before; fast typing is one save and one undo step, with undo and redo; a page turn and leaving the screen save pending typing at once; an edit that changes nothing is no undo step |
 
-### core:pipeline (8)
+### core:pipeline (27)
 
 | Class | Tests | Covers |
 |---|---|---|
 | `TileDetectionTest` | 8 | Tall pages (over 2 widths) are tiled, short ones not; tiles cover a 800 × 20000 strip and overlap; the copies an overlap makes merge into one; the copy a tile saw whole wins over a cut one; a box cut in every tile is their union; different box kinds and separate bubbles stay apart; page edges are not cuts |
 | `DetectionStageTest` | 7 | A free-text box the detector is sure of with nothing read in it becomes an unreadable line; read, unsure and balloon boxes do not; a reading nested in one that holds its text is dropped, neighbours and other text are kept; two columns of one balloon (a narrow one beside a wide one, the balloon smaller than the lettering) become one region read right to left; text far apart in a box spanning joined balloons is not merged |
 | `SeriesResolverTest` | 2 | The patch-cache digest: empty with no glossary or notes; follows terms and notes, not their order |
+| `TranslationPipelineTest` | 10 | The reader's pipeline on the JVM with a scripted detector and on-device model and the real detection stage, batching translator, renderer, patch cache and glossary: a page is detected, translated and rendered to in-page patches; the same pixels again come from the cache with no detection or engine call; Re-translate bypasses the cache; a notes or glossary change misses it; a hung engine fails its image with the watchdog; a broken engine is a typed failure; cancelling the caller cancels the generation; a snapshot too small is skipped before detection; nothing in the region of interest, or an area already translated, means no engine call |
 
-`core:ui`, `feature:library`, `feature:settings` and `:app` have no unit tests; the pipeline is also covered end to end
-by an instrumented test.
+### feature:settings (26)
+
+| Class | Tests | Covers |
+|---|---|---|
+| `SettingsViewModelTest` | 8 | The engine choice (real registry, every HTTP request failing): a keyed engine without a key opens its sheet and keeps the selection; saving the key there completes it; a sheet closed without a key selects nothing; an engine needing no key is selected at once; removing a key keeps the selection; planned engines and models the phone cannot hold are not offered; the Try box without a key fails typed without a request, and translates with the selected on-device engine |
+| `SettingsScreenTest` | 13 | The Settings screen in Compose over a real view model (`SettingsRig`: no network): the rows show the saved choices; a theme tapped is saved and marked; every button and switch has a label for TalkBack (`unlabelledControls`); the source language, Keep for sound effects and Qwen on the CPU are saved from their sheets; notes are saved and their first line shown, Cancel saves nothing; ad blocking and the daily update check are switches; the engine row opens the picker; arriving for a key opens the key dialog without switching; Clear empties history; a Studio manga is deleted only after its dialog |
+| `EnginePickerTest` | 5 | `core:ui`'s picker in Compose: a keyed engine's disc without a key asks for the key, with one selects and closes; its name opens its sheet without selecting; an on-device engine is selected at once; planned and hidden engines are not listed |
+
+### feature:library (16)
+
+| Class | Tests | Covers |
+|---|---|---|
+| `LibraryScreenTest` | 11 | The Sites and History screens in Compose over Room: every control on the list has a label for TalkBack; with no sites the list says how to add one; a site added through the dialog is saved as https with no language override; Add is disabled until the address is a web address; opening a site asks for its languages and keeps a changed pair before the reader opens; Cancel opens nothing; pinning moves a site under Pinned; search filters by name or host; the site sheet (long press) saves a rename and deletes; History opens a visit, removes one and clears all |
+| `LibraryViewModelTest` | 5 | Sites: an http address is saved as https and named from its host; `javascript:`, `file:`, `intent:` and non-URLs are never saved; a new site takes the ad-block default; opening with the Settings pair stores no override, another pair is kept; pin and delete |
+
+### app (17)
+
+| Class | Tests | Covers |
+|---|---|---|
+| `UpdateDialogTest` | 8 | The update dialog in Compose for every state: idle shows nothing; Available offers Update or Later; a manual check can be cancelled; up to date and a failed check offer no update or retry; a failed download offers Retry; a download offers only Cancel; a verified download offers Install or Later |
+| `StartupTasksTest` | 4 | Every start: someone who never chose and has Qwen stays on Qwen; an explicit choice is never changed; without Qwen nothing is written; the first-start packs are fetched until done once, offline retried next start |
+| `ManifestPolicyTest` | 5 | The committed manifest: only INTERNET, ACCESS_NETWORK_STATE and REQUEST_INSTALL_PACKAGES; no cleartext switch or network security config; no backup; only the launcher exported; the FileProvider unexported and sharing only `updates/` and the cache's `share/` |
+
+### core:ui (7)
+
+| Class | Tests | Covers |
+|---|---|---|
+| `AppLocaleTest` | 7 | The app language (Robolectric, API 31 and 34): locales normalised to the UI languages (`ja-JP`, `zh-TW`, `zh-Hant-CN`, `zh-CN`, Java's `in`, an unknown language → English); Android 12 opens in English on a French phone and keeps a choice across a restart (default locale too); an unknown stored tag reads as English; Android 13+ puts a first start on English, follows a per-app language set in the system and restores the saved one when the system forgets it; `set` goes through the system |
+
+Its engine picker and card rows are tested from `feature:settings`; the pipeline is also covered end to end by an
+instrumented test.
 
 ## Instrumented tests
 
@@ -212,10 +309,25 @@ sites; ⋮ › *Reload* loads it.
 - **The real LiteRT-LM runtime, GPU and CPU**, and the real manga-ocr / detector sessions: only on a phone.
 - **Live provider APIs** (Gemini): MockWebServer only; the emulator's HTTPS to providers is intercepted on the
   development machine, so real calls need a phone.
-- **Compose UI**: only the Studio's drag-to-reorder and review-canvas gestures (`GridReorderTest`, `PageCanvasGestureTest`). Settings, the reader, the site dialogs and the Studio screens are checked by hand.
+- **Compose UI**: Settings, Sites and History, Export and the review editor's panels are tested in Compose, as are the
+  Studio's drag-to-reorder, the review-canvas gestures, the update dialog and the engine picker. The reader, the
+  Studio's library, manga, chapter and import screens, the review screen around its panels, My fonts and the font
+  browser are checked by hand.
+- **The reader's view model and screen capture** (`ReaderViewModel`, `ScreenTranslate`, `PipelineScheduler`): they
+  own a WebView and PixelCopy; testing them needs seams that do not exist yet. Their pure helpers are tested.
+- **Studio home, manga and chapter view models**: their repositories are tested; the view models are not (import,
+  export, fonts and review are).
+- **Instrumented and end-to-end tests in CI**: none run there (no device); an offline start-to-export run on an
+  emulator and a smoke test of the R8 release APK are still manual (`release.yml` tests the debug build).
 - **`mt.js` / `pt.js`**: the page scripts have no JavaScript tests; their Kotlin sides (anchoring, change detection)
   are unit-tested.
 - **CPU timing on a low-end phone**: not measured.
+
+## Known flaky test
+
+- `StudioImporterTest.discardDeletesStagedPages` fails now and then **on Windows only**: an antivirus scan can hold a
+  PNG just written, and `StudioFiles.deletePageDir` (`runCatching { deleteRecursively() }`) leaves its directory. On
+  Android nothing holds the file, and a directory left behind is removed by the orphan sweep. The assertion is kept.
 
 ## Adding a test
 

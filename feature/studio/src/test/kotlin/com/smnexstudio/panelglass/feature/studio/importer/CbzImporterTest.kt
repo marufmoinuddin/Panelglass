@@ -6,14 +6,17 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 /** A CBZ read through [CbzReader] into [PageStager], as [StudioImporter.cbz] does, without the Android parts. */
 class CbzImporterTest {
-    @TempDir lateinit var tmp: File
+    /** Not @TempDir: on Windows an antivirus scan can hold a staged page for a moment and fail JUnit's cleanup. */
+    private val tmp: File = kotlin.io.path.createTempDirectory("cbz-importer").toFile()
+
+    @AfterEach fun cleanUp() { tmp.deleteRecursively() }
 
     private fun run(zip: ByteArray, limits: ImportLimits = ImportLimits()): Triple<List<StagedPage>, List<PageStager.Result.Skipped>, com.smnexstudio.panelglass.core.model.ComicInfo?> {
         val files = StudioFiles(File(tmp, "studio"))

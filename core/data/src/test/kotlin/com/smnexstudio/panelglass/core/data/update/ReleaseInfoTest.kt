@@ -46,6 +46,26 @@ class ReleaseInfoTest {
         assertNull(ReleaseInfo.parse(reply(apkUrl = "https://github.com/someone/Panelglass/releases/download/v0.3.0/panelglass-0.3.0.apk")))
     }
 
+    /**
+     * A URL that starts with this repository's prefix but leaves it once its path is resolved (`..`, encoded or not),
+     * or that carries a query, a fragment, a user or a port, is refused: the prefix is checked on the resolved URL.
+     */
+    @Test
+    fun aUrlThatLeavesTheReleasesOnceResolvedIsRefused() {
+        val escapes = listOf(
+            base + "../../../../someone/Panelglass/releases/download/v0.3.0/panelglass-0.3.0.apk",
+            base + "..%2F..%2F..%2F..%2Fsomeone%2Fx%2Fpanelglass-0.3.0.apk",
+            base + "%2e%2e/%2e%2e/%2e%2e/%2e%2e/someone/x/panelglass-0.3.0.apk",
+            base + "./../../../../someone/x/panelglass-0.3.0.apk",
+            base + "panelglass-0.3.0.apk?redirect=https://example.com/a.apk",
+            base + "panelglass-0.3.0.apk#x",
+            base.replace("https://github.com/", "https://user@github.com/") + "panelglass-0.3.0.apk",
+            base.replace("https://github.com/", "https://github.com:8443/") + "panelglass-0.3.0.apk",
+            base.replace("/releases/", "/releases\\") + "panelglass-0.3.0.apk",
+        )
+        for (url in escapes) assertNull(ReleaseInfo.parse(reply(apkUrl = url)), url)
+    }
+
     @Test
     fun versionsCompareAsNumbers() {
         assertTrue(ReleaseInfo.isNewer("0.10.0", "0.9.9"))
@@ -76,6 +96,43 @@ class ReleaseInfoTest {
         assertTrue(ReleaseInfo.isSpent("panelglass-0.3.0.apk.part", "0.2.0"))
         assertTrue(ReleaseInfo.isSpent("something-else.bin", "0.2.0"))
         assertFalse(ReleaseInfo.isSpent("panelglass-0.3.0.apk", "0.2.0"))
+    }
+
+    /** Optional fields may be missing or odd; the release is still read, or refused, without throwing. */
+    @Test
+    fun missingOrOddFieldsAreReadOrRefusedWithoutThrowing() {
+        val noSize = reply().replace(""""size": 283526870, """, "")
+        assertEquals(0L, ReleaseInfo.parse(noSize)!!.apkBytes)
+        val textSize = reply().replace("283526870", "\"big\"")
+        assertEquals(0L, ReleaseInfo.parse(textSize)!!.apkBytes)
+        assertNull(ReleaseInfo.parse("""{"tag_name": "v0.3.0", "assets": "none"}"""))
+        assertNull(ReleaseInfo.parse("""{"tag_name": "v0.3.0"}"""))
+        assertNull(ReleaseInfo.parse("""{"assets": []}"""))
+        assertNull(ReleaseInfo.parse("[]"))
+        assertNull(ReleaseInfo.parse(""))
+        // No draft/prerelease flags at all: a plain release.
+        assertEquals("0.3.0", ReleaseInfo.parse(reply().replace(""""draft": false, "prerelease": false, """, ""))!!.version)
+    }
+
+    /** A reply that is no release at all is a failed check, never "up to date". */
+    @Test
+    fun onlyAReleaseShapedReplyCountsAsAnAnswer() {
+        assertTrue(ReleaseInfo.isReleaseReply(reply()))
+        assertTrue(ReleaseInfo.isReleaseReply(reply(pre = true)), "a pre-release is an answer, just not an update")
+        assertFalse(ReleaseInfo.isReleaseReply("<html>rate limited</html>"))
+        assertFalse(ReleaseInfo.isReleaseReply("""{"message": "API rate limit exceeded"}"""))
+        assertFalse(ReleaseInfo.isReleaseReply(""))
+        assertFalse(ReleaseInfo.isReleaseReply("""{"tag_name": """))
+    }
+
+    /** No false update: nothing is newer than a version that cannot be read. */
+    @Test
+    fun nothingIsNewerThanAnUnreadableInstalledVersion() {
+        assertFalse(ReleaseInfo.isNewer("9.9.9", ""))
+        assertFalse(ReleaseInfo.isNewer("9.9.9", "0.2.0-debug"))
+        assertFalse(ReleaseInfo.isNewer("", ""))
+        assertTrue(ReleaseInfo.isNewer("0.2.1", " v0.2.0 "))
+        assertTrue(ReleaseInfo.isNewer("0.2.0.1", "0.2"))
     }
 
     @Test

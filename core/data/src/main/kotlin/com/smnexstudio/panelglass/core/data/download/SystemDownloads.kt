@@ -21,7 +21,7 @@ import javax.inject.Singleton
  * a store can pick its progress up again.
  */
 @Singleton
-class SystemDownloads @Inject constructor(@ApplicationContext private val context: Context) {
+class SystemDownloads @Inject constructor(@ApplicationContext private val context: Context) : Downloads {
     private val dm: DownloadManager get() = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     private val ids get() = context.getSharedPreferences("system_downloads", Context.MODE_PRIVATE)
 
@@ -32,13 +32,13 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
     fun root(): File? = context.getExternalFilesDir(null)
 
     /** Whether a download for [key] is queued or running (in this or an earlier app session). */
-    fun isActive(key: String): Boolean = ids.contains(key)
+    override fun isActive(key: String): Boolean = ids.contains(key)
 
     /**
      * Queues [url] into `root()/[relativePath]`. The file is written as `…part` and renamed by [await] once complete,
      * so a half-written file is never mistaken for a model. Starting an already queued key is a no-op.
      */
-    fun start(key: String, url: String, relativePath: String, title: String, description: String = "Panelglass on-device model") {
+    override fun start(key: String, url: String, relativePath: String, title: String, description: String) {
         if (isActive(key)) return
         val root = root() ?: throw IOException("Storage unavailable")
         File(root, "$relativePath.part").apply { parentFile?.mkdirs(); delete() }
@@ -52,7 +52,7 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
         ids.edit().putLong(key, dm.enqueue(req)).apply()
     }
 
-    fun cancel(key: String) {
+    override fun cancel(key: String) {
         val id = ids.getLong(key, -1L)
         if (id >= 0) runCatching { dm.remove(id) }
         ids.edit().remove(key).apply()
@@ -63,7 +63,7 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
      * `root()/[relativePath]` and returned; on failure an [IOException] carries a short reason. Cancelling the caller
      * only stops following: the download itself continues until [cancel].
      */
-    suspend fun await(key: String, relativePath: String, minBytes: Long, sha256: String, onProgress: (Progress) -> Unit): File {
+    override suspend fun await(key: String, relativePath: String, minBytes: Long, sha256: String, onProgress: (Progress) -> Unit): File {
         val id = ids.getLong(key, -1L)
         if (id < 0) throw IOException("No download")
         while (true) {
@@ -95,7 +95,7 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
      * Where a verified file for [relativePath] ends up: the app-specific external directory, private to this app
      * (Android 10+; the app needs Android 12).
      */
-    fun finalFile(relativePath: String): File? = root()?.let { File(it, relativePath) }
+    override fun finalFile(relativePath: String): File? = root()?.let { File(it, relativePath) }
 
     /** Moves [src] to [finalFile] of [relativePath] if its SHA-256 is [sha256], else deletes it and throws. */
     fun place(src: File, relativePath: String, sha256: String): File {
@@ -115,7 +115,7 @@ class SystemDownloads @Inject constructor(@ApplicationContext private val contex
      * size and modification time, so a multi-gigabyte model is not hashed on every launch. A file that fails is
      * deleted. Returns the file to load, or null.
      */
-    fun adopt(file: File, sha256: String): File? {
+    override fun adopt(file: File, sha256: String): File? {
         if (isVerified(file, sha256)) return file
         return try {
             if (hashOf(file).equals(sha256, ignoreCase = true)) file.also { markVerified(it, sha256) }

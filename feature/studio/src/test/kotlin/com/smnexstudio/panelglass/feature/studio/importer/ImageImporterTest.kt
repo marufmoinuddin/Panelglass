@@ -7,13 +7,19 @@ import com.smnexstudio.panelglass.feature.studio.moved
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 /** Picked images through [PageStager], ordered as [StudioImporter.images] orders them, and the preview's reorder. */
 class ImageImporterTest {
-    @TempDir lateinit var tmp: File
+    /**
+     * Not @TempDir: on Windows an antivirus scan can hold a page just written for a moment, and JUnit then failed the
+     * test at cleanup although every assertion held. Cleanup here is best effort; the directory is the system temp's.
+     */
+    private val tmp: File = kotlin.io.path.createTempDirectory("image-importer").toFile()
+
+    @AfterEach fun cleanUp() { tmp.deleteRecursively() }
 
     private val files by lazy { StudioFiles(File(tmp, "studio")) }
 

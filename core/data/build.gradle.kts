@@ -46,6 +46,7 @@ dependencies {
     api(libs.androidx.datastore.preferences)
     implementation(libs.okhttp)
 
+    testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.vintage)
     testRuntimeOnly(libs.junit.platform.launcher)
