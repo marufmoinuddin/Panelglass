@@ -1,5 +1,7 @@
 # Build and unit tests for every pull request into main and every push to main.
-# Nothing is published from here: no signing secrets are available to this workflow.
+# Nothing is published from here: no signing secrets are available to this workflow, and no APK is uploaded. The only
+# artifact is the unit-test report (HTML + summary); on a pull request its verdict is posted as one comment, updated on
+# every push. Instrumented tests need a device and are not run here (docs/TESTING.md).
 name: CI
 
 on:
@@ -30,9 +32,116 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # :core:model is plain Kotlin: its tests run under `test`, which testDebugUnitTest does not include.
+      # :core:model is plain Kotlin: its tests run under `test`, which testDebugUnitTest does not include. --continue
+      # runs every module's tests even when one fails, so the report covers all of them; the job fails at the end.
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest :core:model:test --no-configuration-cache
+        id: tests
+        continue-on-error: true
+        run: ./gradlew testDebugUnitTest :core:model:test --continue --no-configuration-cache
+
+      # Its own invocation: each report reads every module's test run (build.gradle.kts › coverage).
+      - name: Coverage
+        if: always()
+        continue-on-error: true
+        run: ./gradlew jacocoUnitTestReport --continue --no-configuration-cache
+
+      - name: Test report
+        if: always()
+        continue-on-error: true
+        run: >
+          python3 tools/test-report/report.py --root . --out build/test-report
+          --commit "${{ github.event.pull_request.head.sha || github.sha }}"
+          --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Upload test report
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/test-report/
+          if-no-files-found: warn
+          retention-days: 30
+
+      # The raw results behind the report: every module's JUnit XML and JaCoCo XML/CSV, for tools and for evidence.
+      - name: Upload raw test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/build/test-results/**/*.xml
+            **/build/reports/jacoco/jacocoUnitTestReport/*
+          if-no-files-found: warn
+          retention-days: 30
+
+      # The summary again, now that the report has an address to link to.
+      - name: Summary
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 tools/test-report/report.py --root . --out build/test-report \
+            --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --report-url "${{ steps.upload.outputs.artifact-url }}" || true
+          cat build/test-report/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload summary
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-summary
+          path: build/test-report/summary.md
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Debug build
+        if: steps.tests.outcome == 'success'
         run: ./gradlew assembleDebug --no-configuration-cache
+
+      - name: Verdict
+        if: steps.tests.outcome != 'success'
+        run: |
+          echo "Unit tests failed: see the test report artifact or the job summary."
+          exit 1
+
+  # Posts the verdict on the pull request: one comment, edited on every push. A separate job so the token that may write
+  # to the pull request never runs the pull request's code. A fork's pull request gets a read-only token, so it is
+  # skipped there (its verdict stays in the run's summary).
+  report:
+    needs: build
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download summary
+        id: summary
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: test-summary
+          path: summary
+
+      - name: Comment on the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          marker='<!-- panelglass-test-report -->'
+          if [ ! -s summary/summary.md ]; then
+            mkdir -p summary
+            printf '%s\n## ❌ Unit tests: no report\n\nThe build job ended (%s) before the test report was written. [Workflow run](%s)\n' \
+              "$marker" "$BUILD_RESULT" "$RUN_URL" > summary/summary.md
+          fi
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.user.type == \"Bot\" and (.body | startswith(\"$marker\"))) | .id" | tail -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@summary/summary.md > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@summary/summary.md > /dev/null
+          fi

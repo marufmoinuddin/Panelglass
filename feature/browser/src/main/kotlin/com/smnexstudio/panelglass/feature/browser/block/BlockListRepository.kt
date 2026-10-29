@@ -53,6 +53,9 @@ class BlockListRepository @Inject constructor(
 
     private fun cacheOf(source: Source) = File(dir, source.name + ".txt")
 
+    /** The clock a cached list's age is measured with; tests set it. */
+    internal var now: () -> Long = System::currentTimeMillis
+
     /** Loads the cached lists immediately and refreshes in the background when one is stale or missing. */
     fun ensureLoaded() {
         scope.launch {
@@ -62,8 +65,8 @@ class BlockListRepository @Inject constructor(
                     try { publish() } catch (_: Exception) {}
                 }
             }
-            val now = System.currentTimeMillis()
-            if (SOURCES.any { now - cacheOf(it).lastModified() > REFRESH_MS }) refresh()
+            val at = now()
+            if (SOURCES.any { at - cacheOf(it).lastModified() > REFRESH_MS }) refresh()
         }
     }
 
@@ -107,7 +110,9 @@ class BlockListRepository @Inject constructor(
                     dir.mkdirs()
                     val tmp = File(dir, source.name + ".tmp")
                     tmp.writeText(text)
-                    if (!tmp.renameTo(cacheOf(source))) tmp.delete() else changed = true
+                    // A rename onto an existing file fails on some file systems (as PatchCache handles): replace it.
+                    val target = cacheOf(source)
+                    if (tmp.renameTo(target) || (target.delete() && tmp.renameTo(target))) changed = true else tmp.delete()
                 }
                 break
             }

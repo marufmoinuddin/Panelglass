@@ -27,6 +27,18 @@ workflow publishes the version's section as the GitHub Release notes.
 - Editing a glossary or notes translates pages again instead of showing cached ones.
 - Debug builds install beside the release app as "Panelglass Debug", help to have release version and debug version(developement) side by side.
 
+### Fixed
+
+- **Check for updates** no longer says "You have the latest version" when GitHub's reply could not be read (a Wi-Fi
+  login page, a cut reply): it says the check failed. An update is never offered when the installed version cannot be
+  read.
+- Checking for updates while an update downloads now stops that download instead of leaving it running unseen.
+- Choosing **Auto** as the reader's font now sticks for someone who had picked a font before the font catalogue.
+- A translation provider's reply that is not JSON (a Wi-Fi login page in its place) now shows as an unusable reply,
+  like any other, instead of a generic error.
+- TalkBack names every switch in Settings and the Studio's panels (it read "Switch, off" with no name), and the
+  whole row now turns the switch on or off.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

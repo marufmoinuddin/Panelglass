@@ -266,48 +266,6 @@ class StudioExporterTest {
         assertNull("nothing written yet: no guess", run.copy(written = 0).remainingMs(10_000))
     }
 
-    /** Writes `page:<the page file's text>:<language>`; [failOn] names a page it cannot read. */
-    private class FakeComposer(private val read: (StudioPage) -> String) : PageComposer {
-        var failOn: String? = null
-        var bytesPerPage = 10L
-        override suspend fun write(page: StudioPage, tgt: Lang, out: OutputStream, quality: PageQuality): Boolean {
-            val tag = read(page)
-            if (tag == failOn) return false
-            out.write("page:$tag:${tgt.name}".toByteArray())
-            return true
-        }
-        override fun estimateBytes(page: StudioPage, quality: PageQuality) = bytesPerPage
-    }
-
-    /** Destinations by URI (null: Downloads), each a plain directory; "permission" = being in [dirs]. */
-    private class DirTargets : ExportTargets {
-        val dirs = HashMap<String?, File>()
-        var failWrites: IOException? = null
-        var free: Long? = null
-        override fun adopt(uri: String) = dirs.containsKey(uri)
-        override fun open(uri: String?): ExportTarget? = dirs[uri]?.let { DirTarget(it) }
-        override fun label(uri: String?) = dirs[uri]?.name
-        override fun freeBytes(uri: String?) = free
-
-        inner class DirTarget(base: File) : ExportTarget {
-            override val root: String = base.path
-            override fun list(dir: String) = File(dir).listFiles().orEmpty().map { ExportEntry(it.path, it.name, it.isDirectory) }
-            override fun folder(dir: String, name: String): String = File(dir, name).apply { mkdirs() }.path
-            override suspend fun write(dir: String, name: String, mime: String, body: suspend (OutputStream) -> Unit) {
-                failWrites?.let { throw it }
-                val f = File(dir, name)
-                val existed = f.exists()
-                try {
-                    f.outputStream().use { body(it) }
-                } catch (e: Throwable) {
-                    if (!existed) f.delete()
-                    throw e
-                }
-            }
-            override fun delete(entry: ExportEntry) { File(entry.id).delete() }
-        }
-    }
-
     private companion object {
         const val PICKED = "content://tree/picked"
     }

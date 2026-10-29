@@ -3,6 +3,7 @@ package com.smnexstudio.panelglass.core.data.update
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import com.smnexstudio.panelglass.core.data.BuildConfig
+import com.smnexstudio.panelglass.core.data.download.Downloads
 import com.smnexstudio.panelglass.core.data.download.SystemDownloads
 import com.smnexstudio.panelglass.core.data.prefs.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +24,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -63,8 +65,8 @@ object ReleaseInfo {
         val apkName = "panelglass-$version.apk"
         val apk = assets.firstOrNull { it.str("name") == apkName } ?: return null
         val sha = assets.firstOrNull { it.str("name") == "$apkName.sha256" } ?: return null
-        val apkUrl = apk.str("browser_download_url")?.takeIf { it.startsWith(PREFIX) } ?: return null
-        val shaUrl = sha.str("browser_download_url")?.takeIf { it.startsWith(PREFIX) } ?: return null
+        val apkUrl = apk.str("browser_download_url")?.takeIf(::isReleaseAsset) ?: return null
+        val shaUrl = sha.str("browser_download_url")?.takeIf(::isReleaseAsset) ?: return null
         return Release(version, apkName, apkUrl, apk["size"]?.jsonPrimitive?.longOrNull ?: 0L, shaUrl)
     }
 
@@ -87,10 +89,13 @@ object ReleaseInfo {
         return !isNewer(v, current)
     }
 
-    /** Whether [candidate] is a later version than [current]; an unreadable version is never newer. */
+    /**
+     * Whether [candidate] is a later version than [current]. An unreadable version is never newer, and nothing is
+     * newer than an unreadable [current]: an update is offered only when both versions are known.
+     */
     fun isNewer(candidate: String, current: String): Boolean {
         val a = parseVersion(candidate) ?: return false
-        val b = parseVersion(current) ?: return true
+        val b = parseVersion(current) ?: return false
         for (i in 0 until maxOf(a.size, b.size)) {
             val x = a.getOrElse(i) { 0 }; val y = b.getOrElse(i) { 0 }
             if (x != y) return x > y
@@ -98,11 +103,29 @@ object ReleaseInfo {
         return false
     }
 
+    /**
+     * Whether [body] is a release as GitHub sends one (a JSON object with a `tag_name`), whether or not it is one the
+     * app offers. Anything else (an HTML error page, a cut reply) is a failed check, never "up to date".
+     */
+    fun isReleaseReply(body: String): Boolean =
+        runCatching { json.parseToJsonElement(body).jsonObject.str("tag_name") != null }.getOrDefault(false)
+
     /** The hash for [fileName] in a `sha256sum` line (`<64 hex>  <name>`), or null. */
     fun sha256For(text: String, fileName: String): String? = text.lineSequence()
         .map { it.trim().split(Regex("\\s+"), limit = 2) }
         .firstOrNull { it.size == 2 && it[1].removePrefix("*") == fileName && it[0].matches(HEX64) }
         ?.get(0)?.lowercase()
+
+    /**
+     * Whether [url] is a file of this repository's releases: https on [PREFIX] as resolved, not only as written. A path
+     * that leaves the prefix once its `.` / `..` segments are resolved (written or percent-encoded), any other escape
+     * (`%2F`, a backslash), a query, a fragment, a user or a port is refused. GitHub's asset URLs have none of these.
+     */
+    internal fun isReleaseAsset(url: String): Boolean {
+        val parsed = url.toHttpUrlOrNull() ?: return false
+        return parsed.toString() == url && url.startsWith(PREFIX) && '%' !in parsed.encodedPath &&
+            parsed.query == null && parsed.fragment == null && parsed.username.isEmpty()
+    }
 
     private fun JsonObject.str(k: String) = this[k]?.jsonPrimitive?.contentOrNull
     private fun JsonObject.bool(k: String) = this[k]?.jsonPrimitive?.booleanOrNull == true
@@ -124,21 +147,36 @@ object ReleaseInfo {
  * with the installed app's key. Debuggable builds (`.debug`, their own app) never check by themselves.
  */
 @Singleton
-class AppUpdates @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val downloads: SystemDownloads,
+class AppUpdates internal constructor(
+    private val downloads: Downloads,
     private val settings: SettingsRepository,
+    /** Built lazily: the first check, not app start, pays for it. Tests route it to a local server. */
+    httpClient: () -> OkHttpClient,
+    private val installedVersion: () -> String,
+    private val debuggable: Boolean,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
+    @Inject constructor(
+        @ApplicationContext context: Context,
+        downloads: SystemDownloads,
+        settings: SettingsRepository,
+    ) : this(
+        downloads, settings,
+        httpClient = { OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build() },
+        installedVersion = { kotlin.runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() },
+        debuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0,
+    )
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val http by lazy { OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build() }
+    private val http by lazy(httpClient)
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val state: StateFlow<UpdateState> = _state
     private var job: Job? = null
 
-    val currentVersion: String
-        get() = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+    val currentVersion: String get() = installedVersion()
 
-    private val debuggable get() = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    /** Waits for the running check or download (tests). */
+    internal suspend fun idle() { job?.join() }
 
     /**
      * At app start: first the downloaded APKs already installed (or older) are deleted, ~280 MB each; then, unless the
@@ -150,10 +188,10 @@ class AppUpdates @Inject constructor(
         job = scope.launch {
             clearSpent()
             if (debuggable || !settings.current().autoUpdateCheck) return@launch
-            val now = System.currentTimeMillis()
-            if (now - settings.updateCheckedAt() < CHECK_EVERY_MS) return@launch
+            val at = now()
+            if (at - settings.updateCheckedAt() < CHECK_EVERY_MS) return@launch
             val release = runCatching { latest() }.getOrNull() ?: return@launch
-            settings.setUpdateCheckedAt(now)
+            settings.setUpdateCheckedAt(at)
             if (ReleaseInfo.isNewer(release.version, currentVersion)) {
                 _state.value = UpdateState.Available(release, currentVersion)
             }
@@ -163,13 +201,15 @@ class AppUpdates @Inject constructor(
     /** Settings › Check for updates: says what it found. */
     fun checkNow() {
         job?.cancel()
+        // A check asked for mid-download replaces it: the system download goes too, or it would run on unseen.
+        if (_state.value is UpdateState.Downloading) downloads.cancel(KEY)
         _state.value = UpdateState.Checking
         job = scope.launch {
             val release = try { latest() } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 android.util.Log.w(TAG, "Update check failed: ${e::class.simpleName}")
                 _state.value = UpdateState.Failed(null); return@launch
             }
-            settings.setUpdateCheckedAt(System.currentTimeMillis())
+            settings.setUpdateCheckedAt(now())
             _state.value = if (release != null && ReleaseInfo.isNewer(release.version, currentVersion))
                 UpdateState.Available(release, currentVersion) else UpdateState.UpToDate(currentVersion)
         }
@@ -216,7 +256,12 @@ class AppUpdates @Inject constructor(
         _state.value = UpdateState.Idle
     }
 
-    private suspend fun latest(): Release? = ReleaseInfo.parse(get(ReleaseInfo.LATEST))
+    /** The release on offer, or null when GitHub's latest is not one the app takes; a reply that is no release throws. */
+    private suspend fun latest(): Release? {
+        val body = get(ReleaseInfo.LATEST)
+        if (!ReleaseInfo.isReleaseReply(body)) throw IOException("Unreadable reply")
+        return ReleaseInfo.parse(body)
+    }
 
     private suspend fun get(url: String): String = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(url)

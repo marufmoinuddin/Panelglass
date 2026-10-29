@@ -4,6 +4,7 @@ import android.util.Log
 import com.smnexstudio.panelglass.core.model.EngineException
 import com.smnexstudio.panelglass.core.model.EngineFailure
 import com.smnexstudio.panelglass.core.model.EngineId
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -55,6 +56,10 @@ class HttpEngineSupport @Inject constructor(
             // Class name only: the message can contain the URL, which for some providers carries the key.
             Log.w(TAG, "${engine.name}: ${e.javaClass.simpleName}")
             throw EngineException(EngineFailure.Network(engine), e)
+        } catch (e: SerializationException) {
+            // A 200 that is no JSON (a captive portal, a proxy's page): an unusable reply, typed like any other.
+            Log.w(TAG, "${engine.name}: ${e.javaClass.simpleName}")
+            throw EngineException(EngineFailure.Malformed(engine), e)
         }
         if (resp.isSuccessful) return resp.body() ?: throw EngineException(EngineFailure.Malformed(engine))
         val errBody = runCatching { resp.errorBody()?.string() }.getOrNull().orEmpty()
@@ -67,6 +72,9 @@ class HttpEngineSupport @Inject constructor(
         } catch (e: IOException) {
             Log.w(TAG, "${engine.name}: ${e.javaClass.simpleName}")
             throw EngineException(EngineFailure.Network(engine), e)
+        } catch (e: SerializationException) {
+            Log.w(TAG, "${engine.name}: ${e.javaClass.simpleName}")
+            throw EngineException(EngineFailure.Malformed(engine), e)
         }
         if (resp.isSuccessful) return resp.body() ?: throw EngineException(EngineFailure.Malformed(engine))
         val errBody = runCatching { resp.errorBody()?.string() }.getOrNull().orEmpty()

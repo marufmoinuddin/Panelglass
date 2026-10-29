@@ -7,6 +7,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -156,16 +158,19 @@ internal fun PanelNote(text: String, warn: Boolean = false, modifier: Modifier =
     }
 }
 
-/** A switch with its name and what it does. */
+/** A switch with its name and what it does; the whole row is the switch, so TalkBack names it. */
 @Composable
 internal fun PanelSwitch(label: String, note: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange).padding(top = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text(label, fontFamily = Jakarta, fontWeight = FontWeight.W600, fontSize = 14.sp, color = if (enabled) Tokens.Ink else Tokens.InkFaint)
             Text(note, fontFamily = Jakarta, fontSize = 12.sp, color = Tokens.InkSoft)
         }
         Switch(
-            checked = checked, onCheckedChange = onChange, enabled = enabled,
+            checked = checked, onCheckedChange = null, enabled = enabled,
             colors = SwitchDefaults.colors(checkedTrackColor = Tokens.Ink, checkedThumbColor = Tokens.Card),
         )
     }

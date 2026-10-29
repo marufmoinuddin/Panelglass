@@ -44,12 +44,13 @@ class PatchCacheTest {
 
     @Test
     fun evictsLeastRecentlyUsedWhenOverBudget() = runTest {
-        val cache = PatchCache(dir, maxBytes = 10_000)
+        // A clock a second per tick: the LRU order never depends on the file system's mtime resolution or on sleeps.
+        var clock = 1_700_000_000_000L
+        val cache = PatchCache(dir, maxBytes = 10_000, now = { clock += 1_000; clock })
         val keys = (0 until 8).map { cache.key("img$it", Lang.JA, Lang.EN, EngineId.GOOGLE, 1) }
         for ((i, k) in keys.withIndex()) {
             cache.put(k, page(1, 2_000))
-            Thread.sleep(5) // mtime resolution
-            if (i == 3 || i == 6) { cache.get(keys[0]); Thread.sleep(5) } // keep touching the first so it stays recent
+            if (i == 3 || i == 6) cache.get(keys[0]) // keep touching the first so it stays recent
         }
         assertTrue(cache.sizeBytes() <= 10_000)
         assertNotNull(cache.get(keys[0]))

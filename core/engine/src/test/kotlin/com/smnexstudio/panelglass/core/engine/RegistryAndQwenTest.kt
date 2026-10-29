@@ -33,6 +33,7 @@ import com.smnexstudio.panelglass.core.model.QwenBackend
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
@@ -360,7 +361,8 @@ class RegistryAndQwenTest {
         locals.onHidden()
         assertEquals(0, r.closed)
         r.gate.complete(Unit); call.join()
-        delay(500)
+        // Released shortly after the call: wait for that, not for a fixed time.
+        withTimeout(5_000) { while (r.closed == 0) delay(10) }
         assertEquals(1, r.closed)
     }
 

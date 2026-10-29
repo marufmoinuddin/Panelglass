@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -394,17 +396,24 @@ fun TextAction(text: String, color: Color = Tokens.SkyDeep, onClick: () -> Unit)
     )
 }
 
-/** Toggle row inside a card. */
+/**
+ * Toggle row inside a card. The whole row is the switch (one control named by its label, for TalkBack too); the
+ * [Switch] only shows the state.
+ */
 @Composable
 fun ToggleCardRow(label: String, checked: Boolean, secondary: String? = null, onChange: (Boolean) -> Unit) {
     val theme = LocalAppTheme.current
-    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.bodyLarge, color = Tokens.Ink)
             if (secondary != null) Text(secondary, style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft)
         }
         Switch(
-            checked = checked, onCheckedChange = onChange,
+            checked = checked, onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = if (theme == AppTheme.SOFT_BLOOM) Color.White else Tokens.Ink,
                 checkedTrackColor = Tokens.Yellow,
