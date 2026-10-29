@@ -11,7 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import com.smnexstudio.panelglass.core.data.repo.ImportTarget
 import com.smnexstudio.panelglass.core.model.Chapter
@@ -21,6 +21,7 @@ import com.smnexstudio.panelglass.core.model.Manga
 import com.smnexstudio.panelglass.core.model.QwenBackend
 import com.smnexstudio.panelglass.core.model.SfxMode
 import com.smnexstudio.panelglass.core.model.StudioPage
+import com.smnexstudio.panelglass.core.model.TranslationNotes
 import com.smnexstudio.panelglass.core.ui.uiName
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -56,6 +57,8 @@ class SettingsScreenTest {
 
     @Before fun setUp() { rig = SettingsRig(context) }
 
+    private val DEFAULT_FIRST_LINE = TranslationNotes.DEFAULT.lineSequence().first()
+
     private fun s(id: Int, vararg args: Any) = context.getString(id, *args)
     private fun current() = runBlocking { rig.settings.current() }
 
@@ -81,7 +84,7 @@ class SettingsScreenTest {
     private fun shown(text: String) = compose.onAllNodesWithText(text, substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
 
     /** The notes dialog's field (the Try box has a text field too). */
-    private fun notesField() = compose.onNode(hasSetTextAction() and hasText(s(UiR.string.settings_notes_hint)))
+    private fun notesField() = compose.onNode(hasSetTextAction() and hasText(DEFAULT_FIRST_LINE, substring = true))
 
     /** The switch row labelled [label] (the row is the switch: one control carrying its label). */
     private fun switchOf(label: String) = compose.onNode(isToggleable() and hasText(label))
@@ -92,7 +95,7 @@ class SettingsScreenTest {
         compose.onNodeWithText(EngineId.GOOGLE.uiName(context)).assertExists()
         compose.onNodeWithText(Lang.JA.uiName()).assertExists()
         compose.onNodeWithText(s(UiR.string.studio_sfx_replace)).assertExists()
-        compose.onNodeWithText(s(UiR.string.settings_notes_empty)).assertExists()
+        compose.onNodeWithText(DEFAULT_FIRST_LINE).assertExists()
     }
 
     /** The theme cards: the one tapped is saved and marked as selected. */
@@ -128,7 +131,7 @@ class SettingsScreenTest {
     @Test fun notesAreSavedAndTheirFirstLineShown() {
         screen()
         compose.onNodeWithText(s(UiR.string.action_edit)).tap()
-        notesField().performTextInput("Keep honorifics.\nShort lines.")
+        notesField().performTextReplacement("Keep honorifics.\nShort lines.")
         compose.onNodeWithText(s(UiR.string.action_save).uppercase()).tap()
         eventually { current().translationNotes == "Keep honorifics.\nShort lines." }
         eventually { shown("Keep honorifics.") }
@@ -137,10 +140,20 @@ class SettingsScreenTest {
     @Test fun cancellingTheNotesDialogSavesNothing() {
         screen()
         compose.onNodeWithText(s(UiR.string.action_edit)).tap()
-        notesField().performTextInput("Not saved")
+        notesField().performTextReplacement("Not saved")
         compose.onNodeWithText(s(UiR.string.action_cancel)).tap()
         compose.waitForIdle()
-        assertEquals("", current().translationNotes)
+        assertEquals(TranslationNotes.DEFAULT, current().translationNotes)
+    }
+
+    /** Notes the user empties stay empty: the row says what notes are for, and the default does not come back. */
+    @Test fun clearedNotesStayEmpty() {
+        screen()
+        compose.onNodeWithText(s(UiR.string.action_edit)).tap()
+        notesField().performTextReplacement("")
+        compose.onNodeWithText(s(UiR.string.action_save).uppercase()).tap()
+        eventually { current().translationNotes == "" }
+        eventually { shown(s(UiR.string.settings_notes_empty)) }
     }
 
     @Test fun adBlockingAndTheDailyUpdateCheckAreSwitches() {

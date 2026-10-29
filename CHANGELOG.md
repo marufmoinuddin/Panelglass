@@ -13,11 +13,16 @@ workflow publishes the version's section as the GitHub Release notes.
   (he, she, they), plus notes for the series. Gemini and the on-device models use them; Google Translate uses the
   names and terms.
 - **Translation notes** in Settings: instructions for the AI engines on every series (tone, honorifics, how to treat
-  missing subjects).
+  missing subjects). They start with suggested notes for English (casual dialogue, honorifics kept, no invented
+  pronouns, short lines); edit them, or empty them to send none.
 - **Sound effects** setting: Keep or Replace (the default) the original effects in the reader.
-- **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector missed; with Replace, effects nothing can read are still erased.
-- **In-app updates**: a newer release is offered once a day (Update or Later), downloaded
-- More Japanese and Korean sound effects in the built-in dictionary; hiragana and katakana spellings, and an extra
+- **A second text detector** (PP-OCRv6, bundled, 1.8 MB) finds sound effects and other text the comic detector
+  missed; with Replace, effects nothing can read are still erased.
+- **In-app updates**: a newer release is offered once a day (Update or Later), downloaded in the background, checked
+  against its published checksum and handed to Android's installer. **Settings › About** checks on demand, and
+  *Check automatically* turns the daily check off.
+- More Japanese and Korean sound effects in the built-in dictionary. Hiragana and katakana spellings of an effect both
+  match, and so does a spelling with an extra or missing ッ or ー (ガツーン, ガツンッ → ガツン).
 
 ### Changed
 
@@ -25,14 +30,9 @@ workflow publishes the version's section as the GitHub Release notes.
   the site has its own.
 - Text that reads as nothing is read again in high contrast, which finds narration on dark art and outlined lettering.
 - Editing a glossary or notes translates pages again instead of showing cached ones.
-- Debug builds install beside the release app as "Panelglass Debug", help to have release version and debug version(developement) side by side.
 
 ### Fixed
 
-- **Check for updates** no longer says "You have the latest version" when GitHub's reply could not be read (a Wi-Fi
-  login page, a cut reply): it says the check failed. An update is never offered when the installed version cannot be
-  read.
-- Checking for updates while an update downloads now stops that download instead of leaving it running unseen.
 - Choosing **Auto** as the reader's font now sticks for someone who had picked a font before the font catalogue.
 - A translation provider's reply that is not JSON (a Wi-Fi login page in its place) now shows as an unusable reply,
   like any other, instead of a generic error.

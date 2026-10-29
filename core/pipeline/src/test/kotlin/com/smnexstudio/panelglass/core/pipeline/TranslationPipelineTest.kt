@@ -184,8 +184,11 @@ class TranslationPipelineTest {
         return r to patches
     }
 
-    /** The patch cache is written in the background after an image: wait for it (a condition, not a sleep). */
-    private suspend fun awaitCached(bmp: Bitmap) = withTimeout(10_000) {
+    /**
+     * The patch cache is written in the background after an image (WEBP encoding): wait for it, a condition and not a
+     * sleep, with room for a machine busy running every module's tests.
+     */
+    private suspend fun awaitCached(bmp: Bitmap) = withTimeout(30_000) {
         val key = cache.key(TranslationPipeline.nativeHash(bmp), cfg.src, cfg.tgt, cfg.engineId, TranslationPipeline.PIPELINE_VERSION, cfg.fontId, "")
         while (cache.get(key) == null) delay(20)
     }

@@ -132,6 +132,14 @@ data class SeriesNotes(
 object TranslationNotes {
     const val MAX_CHARS = 500
 
+    /**
+     * Settings' notes until the user writes their own (docs/TRANSLATION_QUALITY.md › Translation notes). Notes the user
+     * cleared stay empty: only a value never saved reads as this.
+     */
+    const val DEFAULT = "Natural, casual English dialogue. Keep honorifics (-san, -sama, senpai).\n" +
+        "Never add a pronoun or object that isn't in the original; if the subject is unclear, rephrase without one.\n" +
+        "Short lines that fit a speech bubble."
+
     fun compose(entries: List<GlossaryEntry>, series: String, global: String): String {
         val characters = entries.filter { it.pronoun != null && it.source.isNotBlank() }.joinToString("\n") { e ->
             val name = e.target.trim().ifEmpty { e.source.trim() }
