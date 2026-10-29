@@ -7,6 +7,8 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-29
+
 ### Added
 
 - **Glossary & pronouns** in the reader (⋮): character names and terms per series, each character with a pronoun
