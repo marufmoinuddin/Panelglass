@@ -243,13 +243,21 @@ class LocalLlmEngine(
      * model that doubled the time of exactly the calls that were already going wrong.
      */
     private suspend fun translateChunk(r: LlmRunner, req: TranslateRequest): List<TranslatedItem> {
-        val reply = run(r, LocalPrompt.chat(LocalPrompt.system(req), LocalPrompt.payload(req.items))) { LocalPrompt.replyComplete(it, req.items) }
-        val got = LocalPrompt.parse(reply, req.items, req.tgt)
+        val reply = run(r, LocalPrompt.chat(LocalPrompt.system(req), LocalPrompt.payload(req.items))) { LocalPrompt.replyComplete(LocalReply.visible(it), req.items) || it.length > LocalPrompt.maxReplyChars(req.items) * 4 }
+        val got = LocalPrompt.parse(LocalReply.visible(reply), req.items, req.tgt)
         if (got.size < req.items.size) android.util.Log.i(TAG, "${model.key}: reply covered ${got.size}/${req.items.size} items")
         return req.items.map { item -> TranslatedItem(item.i, got[item.i] ?: plain(r, item, req)) }
     }
 
     private suspend fun plain(r: LlmRunner, item: RegionItem, req: TranslateRequest): String {
+        if (model is UserModel) {
+            val single = req.withItems(listOf(item))
+            val reply = run(r, LocalPrompt.chat(LocalPrompt.system(single), LocalPrompt.payload(single.items))) {
+                LocalPrompt.replyComplete(LocalReply.visible(it), single.items) || it.length > LocalPrompt.maxReplyChars(single.items) * 4
+            }
+            return LocalPrompt.parse(LocalReply.visible(reply), single.items, single.tgt)[item.i]
+                ?: throw EngineException(EngineFailure.Malformed(id))
+        }
         // The answer is one line: stop at the first line break after it, or once it runs far past any translation.
         val cap = LocalPrompt.maxReplyChars(listOf(item))
         val text = run(r, LocalPrompt.plain(item, req)) { t -> t.isNotBlank() && t.trimStart().contains('\n') || t.length > cap }
@@ -350,15 +358,16 @@ object LocalPrompt {
         val want = items.map { it.i }.toSet()
         val byI = items.associateBy { it.i }
         val out = HashMap<Int, String>()
-        for (line in reply.lines()) {
+        for (line in LocalReply.visible(reply).lines()) {
             val m = LINE.matchEntire(line.trim()) ?: continue
             val i = m.groupValues[1].toIntOrNull() ?: continue
             if (i !in want || i in out) continue
             val text = withoutSource(clean(m.groupValues[2]), byI[i]?.text.orEmpty(), tgt)
             if (text.isNotEmpty()) out[i] = text
         }
-        if (out.isEmpty() && reply.contains('[')) {
-            runCatching { LlmContract.parse(EngineId.QWEN15_LOCAL, reply, items) }.getOrNull()?.forEach { if (it.text.isNotBlank()) out[it.i] = clean(it.text) }
+        val visibleReply = LocalReply.visible(reply)
+        if (out.isEmpty() && visibleReply.contains('[')) {
+            runCatching { LlmContract.parse(EngineId.QWEN15_LOCAL, visibleReply, items) }.getOrNull()?.forEach { if (it.text.isNotBlank()) out[it.i] = clean(it.text) }
         }
         // A line holding another writing system than the target's is an echo, or a switch of language mid-sentence (on a
         // phone run 물론 came back as もちろん, and "deeply" as गहराई, inside English lines): retried alone, not lettered.
