@@ -296,24 +296,28 @@ fun SettingsScreen(openKeyFor: String? = null, onManageFonts: () -> Unit = {}, v
             userModels.forEachIndexed { i, m ->
                 if (i > 0) CardDivider()
                 val state by vm.stateOf(m).collectAsState()
-                ModelRow(
-                    title = m.label,
-                    name = "LiteRT-LM",
+                if (state is ModelState.Ready) {
+                    val active = s.activeUserModelId == m.id
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(m.label, style = MaterialTheme.typography.bodyLarge, color = Tokens.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(stringResource(UiR.string.model_ready, "LiteRT-LM", mb(m.bytes)), style = MaterialTheme.typography.bodySmall, color = Tokens.InkSoft)
+                        }
+                        TextAction(
+                            stringResource(if (active) UiR.string.model_in_use else UiR.string.model_use),
+                            if (active) Tokens.InkFaint else Tokens.SkyDeep,
+                        ) { if (!active) vm.useUserModel(m) }
+                        TextAction(stringResource(UiR.string.action_delete), Tokens.Error) { vm.deleteUserModel(m) }
+                    }
+                } else ModelRow(
+                    title = m.label, name = "LiteRT-LM",
                     sizeMb = (m.bytes / 1_048_576).toInt(), state = state,
                     onDownload = { vm.downloadUserModel(m) },
                     onCancel = { vm.cancelUserDownload(m) }, onDelete = { vm.deleteUserModel(m) },
                 )
-                if (state is ModelState.Ready) {
-                    CardDivider()
-                    val active = s.activeUserModelId == m.id
-                    ActionRow(
-                        title = stringResource(UiR.string.model_use),
-                        subtitle = m.label,
-                        action = if (active) stringResource(UiR.string.model_in_use) else stringResource(UiR.string.model_use),
-                        actionColor = if (active) Tokens.InkFaint else Tokens.SkyDeep,
-                        onAction = { if (!active) vm.useUserModel(m) },
-                    )
-                }
             }
             if (userModels.isNotEmpty()) CardDivider()
             ActionRow(
