@@ -35,6 +35,17 @@ class ExportNamesTest {
         assertEquals("Chapter 2.zip", ExportNames.archiveFile(c, 2, ExportFormat.ZIP))
     }
 
+    /** A clean export's chapter ends in " (Clean)", never cut off, so it never replaces the translated one. */
+    @Test fun cleanExportsHaveTheirOwnNames() {
+        val c = Chapter(mangaId = 1, number = 12f, title = "Bread")
+        assertEquals("Ch 012 - Bread (Clean)", ExportNames.chapterFolder(c, 1, clean = true))
+        assertEquals("Ch 012 - Bread (Clean).cbz", ExportNames.archiveFile(c, 1, ExportFormat.CBZ, clean = true))
+        assertEquals("Ch 012 - Bread.cbz", ExportNames.archiveFile(c, 1, ExportFormat.CBZ))
+        val long = ExportNames.chapterFolder(c.copy(title = "x".repeat(200)), 1, clean = true)
+        assertTrue(long.endsWith(ExportNames.CLEAN_SUFFIX))
+        assertTrue(long.length <= ExportNames.MAX_NAME)
+    }
+
     @Test fun pageFiles() {
         assertEquals("001.png", ExportNames.pageFile(0, 8))
         assertEquals("120.png", ExportNames.pageFile(119, 120))

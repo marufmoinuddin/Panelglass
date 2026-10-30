@@ -568,6 +568,12 @@
     <string name="studio_back">رجوع</string>
     <string name="studio_export_step">الخطوة %1$d من %2$d</string>
     <string name="studio_export_as">التصدير بصيغة</string>
+    <string name="studio_export_what">ما يُصدَّر</string>
+    <string name="studio_export_translated">مترجمة</string>
+    <string name="studio_export_translated_note">صفحات كُتبت عليها الترجمة</string>
+    <string name="studio_export_clean">منظفة</string>
+    <string name="studio_export_clean_note">صفحات بلا نص: فقاعات ومؤثرات صوتية منظفة، دون ترجمة</string>
+    <string name="studio_export_row_content">الصفحات</string>
     <string name="studio_export_zip_note">أرشيف واحد لكل فصل يفتحه أي تطبيق</string>
     <string name="studio_export_images_note">مجلد صفحات لكل فصل</string>
     <string name="studio_export_cbz_note">لـ Kavita وKomga وقارئات القصص المصورة</string>

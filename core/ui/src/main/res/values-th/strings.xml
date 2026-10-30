@@ -513,6 +513,12 @@
     <string name="studio_back">ย้อนกลับ</string>
     <string name="studio_export_step">ขั้นที่ %1$d จาก %2$d</string>
     <string name="studio_export_as">ส่งออกเป็น</string>
+    <string name="studio_export_what">สิ่งที่จะส่งออก</string>
+    <string name="studio_export_translated">ฉบับแปล</string>
+    <string name="studio_export_translated_note">หน้าที่ใส่คำแปลแล้ว</string>
+    <string name="studio_export_clean">ลบข้อความ</string>
+    <string name="studio_export_clean_note">หน้าไม่มีข้อความ: ลบข้อความในบอลลูนและเสียงประกอบแล้ว ไม่มีคำแปล</string>
+    <string name="studio_export_row_content">หน้า</string>
     <string name="studio_export_zip_note">ไฟล์บีบอัดหนึ่งไฟล์ต่อตอน เปิดได้ทุกแอป</string>
     <string name="studio_export_images_note">โฟลเดอร์หน้าหนึ่งโฟลเดอร์ต่อตอน</string>
     <string name="studio_export_cbz_note">สำหรับ Kavita, Komga และแอปอ่านการ์ตูน</string>

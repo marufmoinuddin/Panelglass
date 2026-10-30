@@ -44,7 +44,7 @@ site does with its pages, Panelglass sees the same pixels you do.
 
 For files you already have there is the **Studio**: import a chapter (images, PDF or CBZ), translate it on the
 phone, check and restyle every bubble, and export the lettered pages as images, CBZ or ZIP for Kavita, Komga or any
-comic reader. See [Studio](#studio-translate-your-own-chapters).
+comic reader, or the clean, text-free pages to letter elsewhere. See [Studio](#studio-translate-your-own-chapters).
 
 
 ## Screenshots
@@ -92,7 +92,7 @@ comic reader. See [Studio](#studio-translate-your-own-chapters).
 ### Studio
 
 Import a chapter (images, PDF or CBZ), translate it on the phone, check and restyle every bubble, then export the
-lettered pages.
+lettered pages, or the clean pages without any text.
 
 <table>
   <tr>
@@ -161,7 +161,7 @@ lettered pages.
   comments) in place, like Chrome's translate bar: the language is detected, English is the default target, and
   both can be changed. On-device with ML Kit; *Show original* puts the page back.
 - **Studio for your own files.** Import images, a PDF or a CBZ, translate the whole chapter, review and restyle
-  every bubble, and export images, CBZ or ZIP ([more](#studio-translate-your-own-chapters)).
+  every bubble, and export images, CBZ or ZIP, translated or clean ([more](#studio-translate-your-own-chapters)).
 - **Four themes and 21 lettering fonts** (a comic font for every target language, or your own), and a
   *Try a translation* box to check an engine before reading.
 - **The app speaks your language.** The interface is in English by default and can be switched to any of the 15
@@ -202,7 +202,7 @@ engines, so it runs fully offline too.
    corners. Speech balloons are traced to their real shape, so fills and text follow the balloon. Brush out what the
    cleanup missed; every step can be undone.
 5. **Export** a chapter or the whole manga as images, CBZ or ZIP, each with a ComicInfo.xml, to Download/Panelglass
-   or a folder you pick.
+   or a folder you pick: translated pages, or clean text-free pages to letter elsewhere.
 
 Also in the Studio:
 
@@ -329,7 +329,7 @@ Start at the **[documentation map](docs/README.md)**, which sends you to the rig
 | Document | Contents |
 |---|---|
 | [docs/TRANSLATION_QUALITY.md](docs/TRANSLATION_QUALITY.md) | Better translations: engines, source language, glossary and pronouns, notes, sound effects, known limits |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules, components, engines, storage, concurrency, security model |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Requirements, modules, components, engines, storage, concurrency, security model |
 | [docs/FLOW.md](docs/FLOW.md) | A screen's journey: capture → pipeline → translation → rendering → overlay; failures; diagnostics |
 | [docs/DETECTION_AND_OCR.md](docs/DETECTION_AND_OCR.md) | The comic text and bubble detector, recognizers, regions and classification |
 | [docs/MEMORY_USAGE.md](docs/MEMORY_USAGE.md) | RAM per engine on a phone: running, translating, in the background, cleared |

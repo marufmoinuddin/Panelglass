@@ -91,6 +91,8 @@ class ExportViewModelTest {
         assertEquals("nothing ticked: stays on the list", ExportStep.CHOOSE, vm.step.value)
         vm.toggleAll()
         vm.next()
+        assertEquals("what the pages show comes first", ExportStep.CONTENT, vm.step.value)
+        vm.toFormat()
         assertEquals(ExportStep.FORMAT, vm.step.value)
         vm.toConfirm()
         assertEquals(ExportStep.CONFIRM, vm.step.value)
@@ -100,7 +102,27 @@ class ExportViewModelTest {
         vm.back()
         assertEquals(ExportStep.FORMAT, vm.step.value)
         vm.back()
+        assertEquals(ExportStep.CONTENT, vm.step.value)
+        vm.back()
         assertEquals(ExportStep.CHOOSE, vm.step.value)
+    }
+
+    /** A clean export writes the clean pages under their own name, and is remembered for the next export. */
+    @Test fun aCleanExportWritesCleanPagesAndIsRemembered() = runBlocking<Unit> {
+        val (m, _) = rig.manga(true)
+        val vm = loaded(rig.vm(m))
+        assertEquals("translated by default", ExportContent.TRANSLATED, vm.content.value)
+        vm.next()
+        vm.setContent(ExportContent.CLEAN)
+        vm.toFormat()
+        vm.toConfirm()
+        val plan = withTimeout(5_000) { vm.plan.first { it != null } }!!
+        assertEquals(listOf("Ch 001 (Clean)/"), plan.files)
+        vm.export().join()
+        withTimeout(5_000) { vm.run.first { it != null && !it.active } }
+        assertEquals("clean:c1p1", File(rig.downloads, "Stardust/Ch 001 (Clean)/001.png").readText())
+        assertEquals(ExportContent.CLEAN, rig.exporter.content())
+        assertEquals(ExportContent.CLEAN, loaded(rig.vm(m)).content.value)
     }
 
     /** The format and quality picked are written and remembered for the next export. */

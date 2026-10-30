@@ -7,6 +7,12 @@ workflow publishes the version's section as the GitHub Release notes.
 
 ## [Unreleased]
 
+### Added
+
+- **Export clean pages** from the Studio: a new step in Export asks *Translated* (the lettered pages, as before) or
+  *Clean* (text-free pages: the bubbles' text and replaced sound effects erased, nothing lettered), for lettering
+  elsewhere. Clean chapters are named `… (Clean)`, so they never replace a translated export.
+
 ## [0.3.0] - 2026-10-29
 
 ### Added

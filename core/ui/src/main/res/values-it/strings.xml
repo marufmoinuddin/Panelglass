@@ -524,6 +524,12 @@
     <string name="studio_back">Indietro</string>
     <string name="studio_export_step">Passo %1$d di %2$d</string>
     <string name="studio_export_as">Esporta come</string>
+    <string name="studio_export_what">Cosa esportare</string>
+    <string name="studio_export_translated">Tradotte</string>
+    <string name="studio_export_translated_note">Pagine con la traduzione inserita</string>
+    <string name="studio_export_clean">Pulite</string>
+    <string name="studio_export_clean_note">Pagine senza testo: nuvolette ed effetti sonori puliti, senza traduzione</string>
+    <string name="studio_export_row_content">Pagine</string>
     <string name="studio_export_zip_note">Un archivio per capitolo che qualsiasi app apre</string>
     <string name="studio_export_images_note">Una cartella di pagine per capitolo</string>
     <string name="studio_export_cbz_note">Per Kavita, Komga e lettori di fumetti</string>

@@ -513,6 +513,12 @@
     <string name="studio_back">戻る</string>
     <string name="studio_export_step">ステップ %1$d / %2$d</string>
     <string name="studio_export_as">書き出し形式</string>
+    <string name="studio_export_what">書き出す内容</string>
+    <string name="studio_export_translated">翻訳済み</string>
+    <string name="studio_export_translated_note">翻訳を写植したページ</string>
+    <string name="studio_export_clean">消去</string>
+    <string name="studio_export_clean_note">文字なしのページ：吹き出しと効果音を消去し、翻訳は入れません</string>
+    <string name="studio_export_row_content">内容</string>
     <string name="studio_export_zip_note">章ごとに1つのアーカイブ（どのアプリでも開けます）</string>
     <string name="studio_export_images_note">章ごとにページのフォルダー</string>
     <string name="studio_export_cbz_note">Kavita、Komga、コミックリーダー向け</string>

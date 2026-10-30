@@ -513,6 +513,12 @@
     <string name="studio_back">返回</string>
     <string name="studio_export_step">第 %1$d 步，共 %2$d 步</string>
     <string name="studio_export_as">匯出為</string>
+    <string name="studio_export_what">匯出內容</string>
+    <string name="studio_export_translated">已翻譯</string>
+    <string name="studio_export_translated_note">嵌入譯文的頁面</string>
+    <string name="studio_export_clean">清除</string>
+    <string name="studio_export_clean_note">無文字頁面：已清除對話框與音效，不含譯文</string>
+    <string name="studio_export_row_content">內容</string>
     <string name="studio_export_zip_note">每章一個壓縮檔，任何應用程式都能開啟</string>
     <string name="studio_export_images_note">每章一個頁面資料夾</string>
     <string name="studio_export_cbz_note">適用於 Kavita、Komga 和漫畫閱讀器</string>

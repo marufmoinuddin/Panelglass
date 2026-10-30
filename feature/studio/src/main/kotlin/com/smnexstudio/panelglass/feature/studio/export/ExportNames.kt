@@ -12,6 +12,8 @@ import com.smnexstudio.panelglass.core.model.Manga
 object ExportNames {
     const val MAX_NAME = 80
     const val COMIC_INFO = "ComicInfo.xml"
+    /** Ends a clean export's chapter name, so it never replaces the translated export beside it. */
+    const val CLEAN_SUFFIX = " (Clean)"
 
     private val reserved = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
     private val spaces = Regex("\\s+")
@@ -31,9 +33,16 @@ object ExportNames {
 
     /**
      * The chapter's folder: `Ch 012 - Title`, `Ch 012.5`, or the title alone for a chapter without a number; [position]
-     * (1-based, in the manga's order) names one with neither, so two never share a folder.
+     * (1-based, in the manga's order) names one with neither, so two never share a folder. A [clean] export's name ends
+     * in [CLEAN_SUFFIX], kept whole however long the title.
      */
-    fun chapterFolder(c: Chapter, position: Int): String {
+    fun chapterFolder(c: Chapter, position: Int, clean: Boolean = false): String {
+        val name = chapterName(c, position)
+        if (!clean) return name
+        return name.take(MAX_NAME - CLEAN_SUFFIX.length).trimEnd('.', ' ') + CLEAN_SUFFIX
+    }
+
+    private fun chapterName(c: Chapter, position: Int): String {
         val number = c.numberLabel?.let { n ->
             val whole = n.substringBefore('.')
             val frac = n.substringAfter('.', "")
@@ -50,7 +59,8 @@ object ExportNames {
     }
 
     /** A chapter exported as one archive, beside the others in the manga's folder: `Ch 012 - Title.cbz`. */
-    fun archiveFile(c: Chapter, position: Int, format: ExportFormat): String = chapterFolder(c, position) + "." + format.extension
+    fun archiveFile(c: Chapter, position: Int, format: ExportFormat, clean: Boolean = false): String =
+        chapterFolder(c, position, clean) + "." + format.extension
 
     /** Page [index] (0-based) of [count]: `001.png`, wider when the chapter has 1000 pages or more. */
     fun pageFile(index: Int, count: Int, extension: String = "png"): String =
@@ -62,8 +72,8 @@ object ExportNames {
      */
     fun isPageFile(name: String): Boolean = pageFile.matches(name)
 
-    /** The chapter's ComicInfo.xml, from the manga's and chapter's details. */
-    fun comicInfo(m: Manga, c: Chapter, pages: Int): ComicInfo {
+    /** The chapter's ComicInfo.xml, from the manga's and chapter's details; [clean] pages have no text, so no language. */
+    fun comicInfo(m: Manga, c: Chapter, pages: Int, clean: Boolean = false): ComicInfo {
         val tgt = c.language ?: m.tgtLang
         val date = Regex("^(\\d{4})-(\\d{2})-(\\d{2})$").matchEntire(c.releaseDate.trim())?.groupValues
         return ComicInfo(
@@ -75,7 +85,7 @@ object ExportNames {
             writer = m.author,
             penciller = m.artist,
             genre = m.genres,
-            languageIso = tgt.code,
+            languageIso = if (clean) "" else tgt.code,
             pageCount = pages,
             year = date?.get(1)?.toIntOrNull(),
             month = date?.get(2)?.toIntOrNull(),

@@ -15,7 +15,7 @@ Start with the question you have; each document answers one kind of question.
 | Document | Read it for |
 |---|---|
 | [CONTRIBUTING](../CONTRIBUTING.md) | Branches and pull requests, building, the checklist, rules that are easy to break, releases |
-| [Architecture](ARCHITECTURE.md) | The modules and how they depend on each other, runtime components, engines, storage, security |
+| [Architecture](ARCHITECTURE.md) | Functional and non-functional requirements with their tests, the modules and how they depend on each other, runtime components, engines, storage, security |
 | [Translation flow](FLOW.md) | One screen's journey: capture → pipeline → translation → erase and letter → patches on the page; failures; diagnostics |
 | [Detection and OCR](DETECTION_AND_OCR.md) | How text is found (two detectors) and read (manga-ocr, ML Kit), and how lines become regions |
 | [Testing](TESTING.md) | Every test class and what it covers, instrumented tests, the checks that need a phone |

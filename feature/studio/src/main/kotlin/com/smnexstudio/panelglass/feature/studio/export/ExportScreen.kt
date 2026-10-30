@@ -38,6 +38,8 @@ import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderZip
+import androidx.compose.material.icons.outlined.FormatClear
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.CircularProgressIndicator
@@ -109,8 +111,8 @@ data class ExportChapter(val summary: ChapterSummary, val translated: Int, val p
     fun bytes(q: PageQuality) = if (q == PageQuality.JPEG) jpegBytes else pngBytes
 }
 
-/** The two pop-ups over the chapter list. */
-enum class ExportStep { CHOOSE, FORMAT, CONFIRM }
+/** The pop-ups over the chapter list, in order: what the pages show, the format, then the folder. */
+enum class ExportStep { CHOOSE, CONTENT, FORMAT, CONFIRM }
 
 /**
  * The export flow (route `studio/export/{id}?chapter=`): tick the chapters, pick the format and page quality in a
@@ -142,6 +144,7 @@ class ExportViewModel @Inject constructor(
     /** Ticked chapters; null until the list has loaded. */
     val selected = MutableStateFlow<Set<Long>?>(null)
     val step = MutableStateFlow(ExportStep.CHOOSE)
+    val content = MutableStateFlow(ExportContent.TRANSLATED)
     val format = MutableStateFlow(ExportFormat.CBZ)
     val quality = MutableStateFlow(PageQuality.PNG)
     /** The destination's name; [custom] when it is a folder the user picked (else Downloads). */
@@ -162,6 +165,7 @@ class ExportViewModel @Inject constructor(
         // A finished export of an earlier visit is not shown again: this visit starts fresh.
         if (exporter.run.value?.active != true) exporter.dismiss()
         viewModelScope.launch {
+            content.value = exporter.content()
             format.value = exporter.format()
             quality.value = exporter.quality()
             loadFolder()
@@ -193,8 +197,11 @@ class ExportViewModel @Inject constructor(
     }
 
     fun next() {
-        if (ids().isNotEmpty()) step.value = ExportStep.FORMAT
+        if (ids().isNotEmpty()) step.value = ExportStep.CONTENT
     }
+
+    /** From what the pages show to the format. */
+    fun toFormat() { step.value = ExportStep.FORMAT }
 
     fun toConfirm() {
         step.value = ExportStep.CONFIRM
@@ -204,6 +211,7 @@ class ExportViewModel @Inject constructor(
     fun back() {
         step.value = when (step.value) {
             ExportStep.CONFIRM -> ExportStep.FORMAT
+            ExportStep.FORMAT -> ExportStep.CONTENT
             else -> ExportStep.CHOOSE
         }
     }
@@ -212,9 +220,10 @@ class ExportViewModel @Inject constructor(
 
     private fun replan() = viewModelScope.launch {
         plan.value = null
-        plan.value = exporter.plan(mangaId, ids(), uri, format.value, quality.value)
+        plan.value = exporter.plan(mangaId, ids(), uri, format.value, quality.value, content.value)
     }
 
+    fun setContent(c: ExportContent) { content.value = c }
     fun setFormat(f: ExportFormat) { format.value = f }
     fun setQuality(q: PageQuality) { quality.value = q }
 
@@ -239,10 +248,11 @@ class ExportViewModel @Inject constructor(
     fun export() = viewModelScope.launch {
         val ids = ids()
         if (ids.isEmpty()) return@launch
+        exporter.setContent(content.value)
         exporter.setFormat(format.value)
         exporter.setQuality(quality.value)
         step.value = ExportStep.CHOOSE
-        exporter.start(mangaId, ids, uri, format.value, quality.value)
+        exporter.start(mangaId, ids, uri, format.value, quality.value, content.value)
     }
 
     fun cancel() = exporter.cancel()
@@ -343,6 +353,7 @@ private fun ChooseChapters(vm: ExportViewModel, m: Manga, onBack: () -> Unit) {
         }
     }
     when (step) {
+        ExportStep.CONTENT -> ContentDialog(vm, picked.size, picked.sumOf { it.summary.pageCount })
         ExportStep.FORMAT -> FormatDialog(vm, picked.size, picked.sumOf { it.summary.pageCount })
         ExportStep.CONFIRM -> ConfirmStep(vm)
         ExportStep.CHOOSE -> Unit
@@ -384,7 +395,38 @@ private fun ChapterChoice(c: ExportChapter, on: Boolean, file: (String) -> File,
     }
 }
 
-// ---- step 2: format (pop-up) ----------------------------------------------------------------------
+// ---- step 2: what the pages show (pop-up) --------------------------------------------------------
+
+@Composable
+private fun ContentDialog(vm: ExportViewModel, chapters: Int, pages: Int) {
+    val content by vm.content.collectAsStateWithLifecycle()
+    StickerDialog(onDismiss = vm::close) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            StepHeader(2, stringResource(UiR.string.studio_export_what), pluralStringResource(UiR.plurals.studio_chapters, chapters, chapters) + " · " + pluralStringResource(UiR.plurals.studio_pages, pages, pages))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ChoiceOption(
+                    contentName(ExportContent.TRANSLATED), stringResource(UiR.string.studio_export_translated_note), Icons.Outlined.Translate,
+                    content == ExportContent.TRANSLATED,
+                ) { vm.setContent(ExportContent.TRANSLATED) }
+                ChoiceOption(
+                    contentName(ExportContent.CLEAN), stringResource(UiR.string.studio_export_clean_note), Icons.Outlined.FormatClear,
+                    content == ExportContent.CLEAN,
+                ) { vm.setContent(ExportContent.CLEAN) }
+            }
+            DialogButtons(stringResource(UiR.string.studio_back), vm::back) { NextPill(stringResource(UiR.string.studio_next), onClick = vm::toFormat) }
+        }
+    }
+}
+
+@Composable
+private fun contentName(c: ExportContent): String = stringResource(
+    when (c) {
+        ExportContent.TRANSLATED -> UiR.string.studio_export_translated
+        ExportContent.CLEAN -> UiR.string.studio_export_clean
+    },
+)
+
+// ---- step 3: format (pop-up) ----------------------------------------------------------------------
 
 @Composable
 private fun FormatDialog(vm: ExportViewModel, chapters: Int, pages: Int) {
@@ -392,7 +434,7 @@ private fun FormatDialog(vm: ExportViewModel, chapters: Int, pages: Int) {
     val quality by vm.quality.collectAsStateWithLifecycle()
     StickerDialog(onDismiss = vm::close) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            StepHeader(2, stringResource(UiR.string.studio_export_as), pluralStringResource(UiR.plurals.studio_chapters, chapters, chapters) + " · " + pluralStringResource(UiR.plurals.studio_pages, pages, pages))
+            StepHeader(3, stringResource(UiR.string.studio_export_as), pluralStringResource(UiR.plurals.studio_chapters, chapters, chapters) + " · " + pluralStringResource(UiR.plurals.studio_pages, pages, pages))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FormatOption(ExportFormat.ZIP, Icons.Outlined.FolderZip, stringResource(UiR.string.studio_export_zip_note), format, vm::setFormat)
                 FormatOption(ExportFormat.IMAGES, Icons.Outlined.Image, stringResource(UiR.string.studio_export_images_note), format, vm::setFormat)
@@ -420,12 +462,16 @@ private fun formatName(f: ExportFormat): String = stringResource(
 )
 
 @Composable
-private fun FormatOption(f: ExportFormat, icon: ImageVector, note: String, current: ExportFormat, onPick: (ExportFormat) -> Unit) {
-    val on = f == current
+private fun FormatOption(f: ExportFormat, icon: ImageVector, note: String, current: ExportFormat, onPick: (ExportFormat) -> Unit) =
+    ChoiceOption(formatName(f), note, icon, f == current) { onPick(f) }
+
+/** One choice of a step's pop-up: an icon, a name, what it means, and a radio mark. */
+@Composable
+private fun ChoiceOption(title: String, note: String, icon: ImageVector, on: Boolean, onPick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Row(
         Modifier.fillMaxWidth().clip(shape).background(if (on) Tokens.YellowTint.copy(alpha = 0.45f) else Tokens.Card)
-            .border(if (on) 2.dp else 1.5.dp, if (on) Tokens.Ink else Tokens.Border, shape).clickable { onPick(f) }.padding(12.dp),
+            .border(if (on) 2.dp else 1.5.dp, if (on) Tokens.Ink else Tokens.Border, shape).clickable(onClick = onPick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (on) Tokens.Yellow else Tokens.Ink.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
@@ -433,7 +479,7 @@ private fun FormatOption(f: ExportFormat, icon: ImageVector, note: String, curre
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(formatName(f), fontFamily = Jakarta, fontWeight = FontWeight.W800, fontSize = 15.sp, color = Tokens.Ink)
+            Text(title, fontFamily = Jakarta, fontWeight = FontWeight.W800, fontSize = 15.sp, color = Tokens.Ink)
             Text(note, fontFamily = Jakarta, fontSize = 12.sp, color = Tokens.InkSoft)
         }
         Box(Modifier.size(22.dp).clip(CircleShape).border(if (on) 7.dp else 2.dp, if (on) Tokens.Ink else Tokens.InkFaint, CircleShape))
@@ -448,7 +494,7 @@ private fun QualityTab(text: String, on: Boolean, modifier: Modifier, onClick: (
     ) { Text(text, fontFamily = Jakarta, fontWeight = FontWeight.W700, fontSize = 12.sp, color = if (on) Tokens.Ink else Tokens.InkSoft, maxLines = 1) }
 }
 
-// ---- step 3: confirm (pop-up) ---------------------------------------------------------------------
+// ---- step 4: confirm (pop-up) ---------------------------------------------------------------------
 
 @Composable
 private fun ConfirmStep(vm: ExportViewModel) {
@@ -458,12 +504,13 @@ private fun ConfirmStep(vm: ExportViewModel) {
     val refused by vm.refused.collectAsStateWithLifecycle()
     val format by vm.format.collectAsStateWithLifecycle()
     val quality by vm.quality.collectAsStateWithLifecycle()
+    val content by vm.content.collectAsStateWithLifecycle()
     var choosingDestination by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { vm.picked(it) }
 
     StickerDialog(onDismiss = vm::close) {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            StepHeader(3, stringResource(UiR.string.studio_export_save_to), null)
+            StepHeader(4, stringResource(UiR.string.studio_export_save_to), null)
             val p = plan
             val fits = p == null || StorageSpace.enough(p.bytes, p.freeBytes)
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Tokens.Border, RoundedCornerShape(16.dp))) {
@@ -488,6 +535,7 @@ private fun ConfirmStep(vm: ExportViewModel) {
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     SummaryRow(stringResource(UiR.string.studio_stat_chapters), pluralStringResource(UiR.plurals.studio_chapters, p.files.size, p.files.size) + " · " + pluralStringResource(UiR.plurals.studio_pages, p.pages, p.pages))
+                    SummaryRow(stringResource(UiR.string.studio_export_row_content), contentName(content))
                     SummaryRow(stringResource(UiR.string.studio_export_row_format), formatName(format) + " · " + quality.name)
                     SummaryRow(stringResource(UiR.string.studio_export_row_size), stringResource(UiR.string.studio_export_about, bytes(p.bytes)))
                 }
@@ -532,6 +580,9 @@ private fun tree(p: ExportPlan): String {
 
 private const val MAX_TREE = 6
 
+/** Steps of the flow: chapters, what the pages show, format, folder. */
+private const val STEPS = 4
+
 @Composable
 private fun SummaryRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth()) {
@@ -543,7 +594,7 @@ private fun SummaryRow(label: String, value: String) {
 @Composable
 private fun StepHeader(n: Int, title: String, subtitle: String?) {
     Column {
-        Text(stringResource(UiR.string.studio_export_step, n, 3).uppercase(), fontFamily = Jakarta, fontWeight = FontWeight.W700, fontSize = 12.sp, letterSpacing = 1.4.sp, color = Tokens.InkFaint)
+        Text(stringResource(UiR.string.studio_export_step, n, STEPS).uppercase(), fontFamily = Jakarta, fontWeight = FontWeight.W700, fontSize = 12.sp, letterSpacing = 1.4.sp, color = Tokens.InkFaint)
         Text(title, fontFamily = Jakarta, fontWeight = FontWeight.W800, fontSize = 21.sp, color = Tokens.Ink, modifier = Modifier.padding(top = 4.dp))
         subtitle?.let { Text(it, fontFamily = Jakarta, fontSize = 13.sp, color = Tokens.InkSoft, modifier = Modifier.padding(top = 4.dp)) }
     }

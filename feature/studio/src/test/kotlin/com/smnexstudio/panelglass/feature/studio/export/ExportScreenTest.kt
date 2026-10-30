@@ -73,6 +73,15 @@ class ExportScreenTest {
     /** NEXT on the list (and, while a step is open, in that step's pop-up: the last one). */
     private fun next() = compose.onAllNodesWithText(s(UiR.string.studio_next).uppercase()).onLast()
 
+    /** From the chapter list through "what to export" ([clean] or translated) to the format step. */
+    private fun toFormat(clean: Boolean = false) {
+        next().tap()
+        eventually { shown(s(UiR.string.studio_export_what)) }
+        if (clean) compose.onNodeWithText(s(UiR.string.studio_export_clean)).tap()
+        next().tap()
+        eventually { shown(s(UiR.string.studio_export_as)) }
+    }
+
     @Test fun anUntranslatedChapterIsMarkedAndNotTicked() {
         screen(false)
         compose.onNodeWithText(s(UiR.string.studio_export_untranslated)).assertExists()
@@ -81,8 +90,7 @@ class ExportScreenTest {
 
     @Test fun theWholeFlowWritesAZipOfSmallerPages() {
         screen(true)
-        next().tap()
-        eventually { shown(s(UiR.string.studio_export_as)) }
+        toFormat()
         compose.onNodeWithText(s(UiR.string.studio_export_format_zip)).tap()
         compose.onNodeWithText(s(UiR.string.studio_export_smaller)).tap()
         next().tap()
@@ -94,13 +102,30 @@ class ExportScreenTest {
         assertEquals(1, backs)
     }
 
-    @Test fun backInAStepReturnsToTheList() {
+    /** Back goes one step at a time: format, then what to export, then the list. */
+    @Test fun backInAStepReturnsStepByStepToTheList() {
         screen(true)
-        next().tap()
-        eventually { shown(s(UiR.string.studio_export_as)) }
+        toFormat()
         compose.onNodeWithText(s(UiR.string.studio_back)).tap()
-        eventually { !shown(s(UiR.string.studio_export_as)) }
+        eventually { !shown(s(UiR.string.studio_export_as)) && shown(s(UiR.string.studio_export_what)) }
+        compose.onNodeWithText(s(UiR.string.studio_back)).tap()
+        eventually { !shown(s(UiR.string.studio_export_what)) }
         assertEquals(0, backs)
+    }
+
+    /** Export clean: the confirm step says so and names the clean files; the pages are written without lettering. */
+    @Test fun aCleanExportWritesTextFreePages() {
+        screen(true)
+        toFormat(clean = true)
+        compose.onNodeWithText(s(UiR.string.studio_export_format_cbz)).tap()
+        next().tap()
+        eventually { shown(s(UiR.string.studio_export_save_to)) && shown("Ch 001 (Clean).cbz") }
+        compose.onNodeWithText(s(UiR.string.studio_export_row_content)).assertExists()
+        compose.onNodeWithText(s(UiR.string.studio_export).uppercase()).tap()
+        eventually { shown(p(UiR.plurals.studio_export_done_title, 1)) }
+        java.util.zip.ZipFile(File(rig.downloads, "Stardust/Ch 001 (Clean).cbz")).use { z ->
+            assertEquals("clean:c1p1", z.getInputStream(z.getEntry("001.png")).readBytes().decodeToString())
+        }
     }
 
     /** The confirm step names what will be replaced. */
@@ -108,8 +133,7 @@ class ExportScreenTest {
         screen(true)
         File(rig.downloads, "Stardust").mkdirs()
         File(rig.downloads, "Stardust/Ch 001.cbz").writeText("old")
-        next().tap()
-        eventually { shown(s(UiR.string.studio_export_as)) }
+        toFormat()
         compose.onNodeWithText(s(UiR.string.studio_export_format_cbz)).tap()
         next().tap()
         eventually { shown(p(UiR.plurals.studio_export_overwrite, 1)) }
