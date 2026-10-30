@@ -29,8 +29,7 @@ class LocalReplyTest {
     }
 
     @Test fun theParserNeverAcceptsANumberedLineFromReasoning() {
-        assertEquals(mapOf(0 to "Good morning."), LocalPrompt.parse("<think>0: Not an answer</think>
-0: Good morning.", items, Lang.EN))
+        assertEquals(mapOf(0 to "Good morning."), LocalPrompt.parse("<think>0: Not an answer</think>\n0: Good morning.", items, Lang.EN))
     }
 
     @Test fun unstructuredAndWrongItemRepliesAreNotTranslations() {

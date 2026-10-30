@@ -2,7 +2,7 @@ package com.smnexstudio.panelglass.core.engine.local
 
 /** Removes tagged reasoning, including an unfinished reasoning block in streamed output. */
 internal object LocalReply {
-    private val tags = Regex("</?(?:think|analysis)\s*>", RegexOption.IGNORE_CASE)
+    private val tags = Regex("</?(?:think|analysis)>", RegexOption.IGNORE_CASE)
 
     fun visible(raw: String): String {
         val out = StringBuilder()
