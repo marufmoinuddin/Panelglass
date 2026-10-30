@@ -6,14 +6,17 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 
-/** Writes `page:<the page file's text>:<language>`; [failOn] names a page it cannot read. */
+/**
+ * Writes `page:<the page file's text>:<language>`, or `clean:<the page file's text>` for a clean export; [failOn]
+ * names a page it cannot read.
+ */
 internal class FakeComposer(private val read: (StudioPage) -> String) : PageComposer {
     var failOn: String? = null
     var bytesPerPage = 10L
-    override suspend fun write(page: StudioPage, tgt: Lang, out: OutputStream, quality: PageQuality): Boolean {
+    override suspend fun write(page: StudioPage, tgt: Lang, out: OutputStream, quality: PageQuality, content: ExportContent): Boolean {
         val tag = read(page)
         if (tag == failOn) return false
-        out.write("page:$tag:${tgt.name}".toByteArray())
+        out.write((if (content == ExportContent.CLEAN) "clean:$tag" else "page:$tag:${tgt.name}").toByteArray())
         return true
     }
     override fun estimateBytes(page: StudioPage, quality: PageQuality) = bytesPerPage

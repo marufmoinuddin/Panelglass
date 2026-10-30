@@ -546,6 +546,12 @@
     <string name="studio_back">Назад</string>
     <string name="studio_export_step">Шаг %1$d из %2$d</string>
     <string name="studio_export_as">Экспорт в формате</string>
+    <string name="studio_export_what">Что экспортировать</string>
+    <string name="studio_export_translated">С переводом</string>
+    <string name="studio_export_translated_note">Страницы с вписанным переводом</string>
+    <string name="studio_export_clean">Очищенные</string>
+    <string name="studio_export_clean_note">Страницы без текста: облачка и звуковые эффекты очищены, без перевода</string>
+    <string name="studio_export_row_content">Страницы</string>
     <string name="studio_export_zip_note">Один архив на главу, открывается любым приложением</string>
     <string name="studio_export_images_note">Папка страниц на каждую главу</string>
     <string name="studio_export_cbz_note">Для Kavita, Komga и читалок комиксов</string>

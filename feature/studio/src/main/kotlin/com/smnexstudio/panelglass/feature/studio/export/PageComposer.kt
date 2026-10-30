@@ -18,8 +18,14 @@ import javax.inject.Singleton
 
 /** Writes one finished page as PNG or JPEG. A seam: tests check the exporter without decoding or drawing pixels. */
 interface PageComposer {
-    /** Writes [page] lettered in [tgt] to [out] in [quality]; false when the page cannot be read. */
-    suspend fun write(page: StudioPage, tgt: Lang, out: OutputStream, quality: PageQuality = PageQuality.PNG): Boolean
+    /**
+     * Writes [page] to [out] in [quality], lettered in [tgt], or only cleaned for [ExportContent.CLEAN]; false when the
+     * page cannot be read.
+     */
+    suspend fun write(
+        page: StudioPage, tgt: Lang, out: OutputStream, quality: PageQuality = PageQuality.PNG,
+        content: ExportContent = ExportContent.TRANSLATED,
+    ): Boolean
 
     /** About how many bytes [write] will produce for [page], for the free space check and the size shown. */
     fun estimateBytes(page: StudioPage, quality: PageQuality = PageQuality.PNG): Long
@@ -27,8 +33,9 @@ interface PageComposer {
 
 /**
  * The exported page is the Final layer at full size: the clean layer (rebuilt first when an edit cleared it) with
- * every bubble lettered by [StudioRenderer], the same drawing the editor shows. A page that was never read is
- * written as it is. One page is in memory at a time, and its bitmap is recycled before the next.
+ * every bubble lettered by [StudioRenderer], the same drawing the editor shows; a clean export stops before the
+ * lettering, as the editor's Clean layer. A page that was never read is written as it is. One page is in memory at a
+ * time, and its bitmap is recycled before the next.
  */
 @Singleton
 class RenderedPageComposer @Inject constructor(
@@ -37,7 +44,7 @@ class RenderedPageComposer @Inject constructor(
     private val loader: PageLoader,
     private val renderer: StudioRenderer,
 ) : PageComposer {
-    override suspend fun write(page: StudioPage, tgt: Lang, out: OutputStream, quality: PageQuality): Boolean {
+    override suspend fun write(page: StudioPage, tgt: Lang, out: OutputStream, quality: PageQuality, content: ExportContent): Boolean {
         if (StudioStage.DETECTED in page.stages && StudioStage.CLEANED !in page.stages) translator.cleanPage(page.id)
         val fresh = repo.getPage(page.id) ?: return false
         val original = repo.files.file(fresh.file)
@@ -50,7 +57,7 @@ class RenderedPageComposer @Inject constructor(
         try {
             // The clean layer is at the analysis resolution: full size, or 1/2ⁿ for a page over the pixel budget.
             val scale = base.width.toFloat() / pageW
-            renderer.draw(Canvas(base), repo.bubbleList(page.id), tgt, scale, art = base)
+            if (content == ExportContent.TRANSLATED) renderer.draw(Canvas(base), repo.bubbleList(page.id), tgt, scale, art = base)
             return when (quality) {
                 PageQuality.PNG -> base.compress(Bitmap.CompressFormat.PNG, 100, out)
                 PageQuality.JPEG -> base.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)

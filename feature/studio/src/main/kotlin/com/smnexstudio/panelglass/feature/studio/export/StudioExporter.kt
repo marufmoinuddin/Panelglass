@@ -38,6 +38,12 @@ enum class PageQuality(val extension: String, val mime: String) {
     JPEG("jpg", "image/jpeg"),
 }
 
+/**
+ * What each page shows: the translation lettered in (the editor's Final), or the clean page alone (its Clean layer: the
+ * bubbles' text and replaced sound effects erased, nothing lettered), for someone who letters it elsewhere.
+ */
+enum class ExportContent { TRANSLATED, CLEAN }
+
 /** One file or folder an export wrote: the chapter's archive or its folder of pages (`name/`), with its size. */
 data class ExportedFile(val chapterId: Long, val name: String, val pages: Int, val bytes: Long)
 
@@ -82,6 +88,7 @@ data class ExportRun(
     val phase: ExportPhase,
     val format: ExportFormat = ExportFormat.IMAGES,
     val quality: PageQuality = PageQuality.PNG,
+    val content: ExportContent = ExportContent.TRANSLATED,
     val chapter: Int = 0,
     val page: Int = 0,
     val pages: Int = 0,
@@ -148,6 +155,11 @@ class StudioExporter @Inject constructor(
 
     suspend fun setQuality(q: PageQuality) = settings.setStudioExportQuality(q.name)
 
+    suspend fun content(): ExportContent =
+        settings.studioExportContent()?.let { n -> ExportContent.entries.firstOrNull { it.name == n } } ?: ExportContent.TRANSLATED
+
+    suspend fun setContent(c: ExportContent) = settings.setStudioExportContent(c.name)
+
     /** About how many bytes [pages] come to in [quality]. */
     fun estimate(pages: List<StudioPage>, quality: PageQuality): Long = pages.sumOf { composer.estimateBytes(it, quality) }
 
@@ -158,13 +170,16 @@ class StudioExporter @Inject constructor(
     }
 
     /** What exporting [chapterIds] to [uri] in [format] would write; null when the manga is gone. */
-    suspend fun plan(mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, quality: PageQuality): ExportPlan? {
+    suspend fun plan(
+        mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, quality: PageQuality,
+        content: ExportContent = ExportContent.TRANSLATED,
+    ): ExportPlan? {
         val manga = repo.getManga(mangaId) ?: return null
         val order = repo.chapterList(mangaId)
         val chapters = chapterIds.mapNotNull { id -> order.firstOrNull { it.id == id } }
         val pagesOf = chapters.associate { it.id to repo.pageList(it.id) }
-        val names = chapters.map { c -> fileName(c, order.indexOf(c) + 1, format) }
-        val there = existingIds(mangaId, chapterIds, uri, format).toSet()
+        val names = chapters.map { c -> fileName(c, order.indexOf(c) + 1, format, content) }
+        val there = existingIds(mangaId, chapterIds, uri, format, content).toSet()
         return ExportPlan(
             folder = targets.label(uri).orEmpty(),
             mangaFolder = ExportNames.mangaFolder(manga),
@@ -178,14 +193,20 @@ class StudioExporter @Inject constructor(
     }
 
     /** The chapter's archive, or its folder (with a trailing `/`). */
-    private fun fileName(c: Chapter, pos: Int, format: ExportFormat): String =
-        if (format == ExportFormat.IMAGES) ExportNames.chapterFolder(c, pos) + "/" else ExportNames.archiveFile(c, pos, format)
+    private fun fileName(c: Chapter, pos: Int, format: ExportFormat, content: ExportContent): String {
+        val clean = content == ExportContent.CLEAN
+        return if (format == ExportFormat.IMAGES) ExportNames.chapterFolder(c, pos, clean) + "/" else ExportNames.archiveFile(c, pos, format, clean)
+    }
 
     /** How many of [chapterIds] were exported to [uri] in [format] already (an overwrite to confirm first). */
-    suspend fun existing(mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat): Int =
-        existingIds(mangaId, chapterIds, uri, format).size
+    suspend fun existing(
+        mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, content: ExportContent = ExportContent.TRANSLATED,
+    ): Int = existingIds(mangaId, chapterIds, uri, format, content).size
 
-    private suspend fun existingIds(mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat): List<Long> {
+    private suspend fun existingIds(
+        mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, content: ExportContent,
+    ): List<Long> {
+        val clean = content == ExportContent.CLEAN
         val target = targets.open(uri) ?: return emptyList()
         val manga = repo.getManga(mangaId) ?: return emptyList()
         return runCatching {
@@ -196,17 +217,20 @@ class StudioExporter @Inject constructor(
                 val c = order.firstOrNull { it.id == id } ?: return@filter false
                 val pos = order.indexOf(c) + 1
                 if (format == ExportFormat.IMAGES) {
-                    val sub = inDir.firstOrNull { it.isDir && it.name == ExportNames.chapterFolder(c, pos) }
+                    val sub = inDir.firstOrNull { it.isDir && it.name == ExportNames.chapterFolder(c, pos, clean) }
                     sub != null && target.list(sub.id).isNotEmpty()
-                } else inDir.any { !it.isDir && it.name == ExportNames.archiveFile(c, pos, format) }
+                } else inDir.any { !it.isDir && it.name == ExportNames.archiveFile(c, pos, format, clean) }
             }
         }.getOrDefault(emptyList())
     }
 
-    fun start(mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, quality: PageQuality) {
+    fun start(
+        mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, quality: PageQuality,
+        content: ExportContent = ExportContent.TRANSLATED,
+    ) {
         if (job?.isActive == true || chapterIds.isEmpty()) return
-        _run.value = ExportRun(mangaId, chapterIds, ExportPhase.RUNNING, format, quality, startedAt = now())
-        job = scope.launch { export(mangaId, chapterIds, uri, format, quality) }
+        _run.value = ExportRun(mangaId, chapterIds, ExportPhase.RUNNING, format, quality, content, startedAt = now())
+        job = scope.launch { export(mangaId, chapterIds, uri, format, quality, content) }
     }
 
     fun cancel() {
@@ -222,8 +246,12 @@ class StudioExporter @Inject constructor(
     private class PageUnreadable : IOException()
 
     /** The export itself; tests call it directly. */
-    internal suspend fun export(mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, quality: PageQuality = PageQuality.PNG) {
-        var state = ExportRun(mangaId, chapterIds, ExportPhase.RUNNING, format, quality, startedAt = now())
+    internal suspend fun export(
+        mangaId: Long, chapterIds: List<Long>, uri: String?, format: ExportFormat, quality: PageQuality = PageQuality.PNG,
+        content: ExportContent = ExportContent.TRANSLATED,
+    ) {
+        val clean = content == ExportContent.CLEAN
+        var state = ExportRun(mangaId, chapterIds, ExportPhase.RUNNING, format, quality, content, startedAt = now())
         fun set(s: ExportRun) {
             state = if (s.phase != ExportPhase.RUNNING && s.finishedAt == 0L) s.copy(finishedAt = now()) else s
             _run.value = state
@@ -251,9 +279,9 @@ class StudioExporter @Inject constructor(
                 val pages = pagesOf.getValue(chapter.id)
                 val pos = order.indexOf(chapter) + 1
                 val tgt = chapter.language ?: manga.tgtLang
-                val info = ExportNames.comicInfo(manga, chapter, pages.size).toXml().toByteArray(Charsets.UTF_8)
+                val info = ExportNames.comicInfo(manga, chapter, pages.size, clean).toXml().toByteArray(Charsets.UTF_8)
                 if (format == ExportFormat.IMAGES) {
-                    val name = ExportNames.chapterFolder(chapter, pos)
+                    val name = ExportNames.chapterFolder(chapter, pos, clean)
                     set(state.copy(chapter = ci, page = 0, pages = pages.size, where = "$label/$mangaName/$name"))
                     val dir = target.folder(mangaDir, name)
                     val files = pages.indices.map { ExportNames.pageFile(it, pages.size, quality.extension) }.toSet()
@@ -263,7 +291,7 @@ class StudioExporter @Inject constructor(
                         coroutineContext.ensureActive()
                         target.write(dir, ExportNames.pageFile(i, pages.size, quality.extension), quality.mime) { out ->
                             val counted = CountingOutputStream(out)
-                            if (!composer.write(page, tgt, counted, quality)) throw PageUnreadable()
+                            if (!composer.write(page, tgt, counted, quality, content)) throw PageUnreadable()
                             bytes += counted.count
                         }
                         set(state.copy(page = i + 1, written = state.written + 1))
@@ -271,7 +299,7 @@ class StudioExporter @Inject constructor(
                     target.write(dir, ExportNames.COMIC_INFO, "text/xml") { it.write(info) }
                     set(state.copy(files = state.files + ExportedFile(chapter.id, "$name/", pages.size, bytes + info.size)))
                 } else {
-                    val name = ExportNames.archiveFile(chapter, pos, format)
+                    val name = ExportNames.archiveFile(chapter, pos, format, clean)
                     set(state.copy(chapter = ci, page = 0, pages = pages.size, where = "$label/$mangaName/$name"))
                     var bytes = 0L
                     target.write(mangaDir, name, format.mime) { out ->
@@ -281,7 +309,7 @@ class StudioExporter @Inject constructor(
                         for ((i, page) in pages.withIndex()) {
                             coroutineContext.ensureActive()
                             zip.putNextEntry(ZipEntry(ExportNames.pageFile(i, pages.size, quality.extension)))
-                            if (!composer.write(page, tgt, zip, quality)) throw PageUnreadable()
+                            if (!composer.write(page, tgt, zip, quality, content)) throw PageUnreadable()
                             zip.closeEntry()
                             set(state.copy(page = i + 1, written = state.written + 1))
                         }

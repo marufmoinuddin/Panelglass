@@ -49,6 +49,7 @@ class SettingsRepository @Inject constructor(
         val pageTarget = stringPreferencesKey("pageTranslateTarget")
         val studioExportFormat = stringPreferencesKey("studioExportFormat")
         val studioExportQuality = stringPreferencesKey("studioExportQuality")
+        val studioExportContent = stringPreferencesKey("studioExportContent")
         val fontFavourites = stringPreferencesKey("fontFavourites")
         val qwenBackend = stringPreferencesKey("qwenBackend")
         val automaticPacks = booleanPreferencesKey("automaticPacksDone")
@@ -118,6 +119,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun studioExportQuality(): String? = dataStore.data.first()[K.studioExportQuality]
     suspend fun setStudioExportQuality(name: String) { dataStore.edit { it[K.studioExportQuality] = name } }
+
+    /** What the Studio last exported: the translated pages or the clean ones (`ExportContent` name). */
+    suspend fun studioExportContent(): String? = dataStore.data.first()[K.studioExportContent]
+    suspend fun setStudioExportContent(name: String) { dataStore.edit { it[K.studioExportContent] = name } }
 
     /** The Studio's favourite fonts, in the order they were starred (ids shared by bundled and user fonts). */
     val fontFavourites: Flow<List<String>> = dataStore.data.map { p -> favourites(p[K.fontFavourites]) }

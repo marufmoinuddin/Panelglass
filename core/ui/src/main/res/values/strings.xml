@@ -553,6 +553,12 @@
     <string name="studio_back">Back</string>
     <string name="studio_export_step">Step %1$d of %2$d</string>
     <string name="studio_export_as">Export as</string>
+    <string name="studio_export_what">What to export</string>
+    <string name="studio_export_translated">Translated</string>
+    <string name="studio_export_translated_note">Pages with the translation lettered in</string>
+    <string name="studio_export_clean">Clean</string>
+    <string name="studio_export_clean_note">Text-free pages: bubbles and sound effects cleaned, no translation</string>
+    <string name="studio_export_row_content">Pages</string>
     <string name="studio_export_zip_note">One archive per chapter that any app opens</string>
     <string name="studio_export_images_note">A folder of pages per chapter</string>
     <string name="studio_export_cbz_note">For Kavita, Komga and comic readers</string>

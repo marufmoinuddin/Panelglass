@@ -123,6 +123,30 @@ class StudioExporterTest {
         assertEquals("a file that is not a page is kept", "mine", File(dir, "notes.txt").readText())
     }
 
+    /**
+     * A clean export sits beside the translated one under its own name: neither replaces the other, each counts only
+     * its own earlier file as an overwrite, and the clean ComicInfo names no language (its pages have no text).
+     */
+    @Test fun cleanAndTranslatedExportsLiveSideBySide() = runBlocking {
+        val (m, ch) = manga(2)
+        val e = exporter()
+        e.export(m, listOf(ch), null, ExportFormat.CBZ)
+        assertEquals(0, e.existing(m, listOf(ch), null, ExportFormat.CBZ, ExportContent.CLEAN))
+        e.export(m, listOf(ch), null, ExportFormat.CBZ, content = ExportContent.CLEAN)
+        assertEquals(listOf("Ch 012 - Bread (Clean).cbz", "Ch 012 - Bread.cbz"), File(downloads, "Stardust").list()!!.sorted())
+        ZipFile(File(downloads, "Stardust/Ch 012 - Bread (Clean).cbz")).use { z ->
+            assertEquals("clean:a2", z.getInputStream(z.getEntry("002.png")).readBytes().decodeToString())
+            val info = ComicInfo.parse(z.getInputStream(z.getEntry("ComicInfo.xml")).readBytes().decodeToString())
+            assertEquals("", info.languageIso)
+            assertEquals("Stardust", info.series)
+        }
+        ZipFile(File(downloads, "Stardust/Ch 012 - Bread.cbz")).use { z ->
+            assertEquals("the translated export is untouched", "page:a2:EN", z.getInputStream(z.getEntry("002.png")).readBytes().decodeToString())
+        }
+        assertEquals(1, e.existing(m, listOf(ch), null, ExportFormat.CBZ, ExportContent.CLEAN))
+        assertEquals(ExportContent.CLEAN, e.run.value!!.content)
+    }
+
     @Test fun nothingExistsBeforeTheFirstExport() = runBlocking {
         val (m, ch) = manga(1)
         assertEquals(0, exporter().existing(m, listOf(ch), null, ExportFormat.IMAGES))

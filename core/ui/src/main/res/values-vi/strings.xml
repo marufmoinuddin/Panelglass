@@ -513,6 +513,12 @@
     <string name="studio_back">Quay lại</string>
     <string name="studio_export_step">Bước %1$d / %2$d</string>
     <string name="studio_export_as">Xuất dưới dạng</string>
+    <string name="studio_export_what">Xuất nội dung gì</string>
+    <string name="studio_export_translated">Đã dịch</string>
+    <string name="studio_export_translated_note">Trang có bản dịch đã điền chữ</string>
+    <string name="studio_export_clean">Đã xóa chữ</string>
+    <string name="studio_export_clean_note">Trang không chữ: bóng thoại và hiệu ứng âm thanh đã xóa, không có bản dịch</string>
+    <string name="studio_export_row_content">Trang</string>
     <string name="studio_export_zip_note">Mỗi chương một tệp nén, ứng dụng nào cũng mở được</string>
     <string name="studio_export_images_note">Mỗi chương một thư mục trang</string>
     <string name="studio_export_cbz_note">Dành cho Kavita, Komga và trình đọc truyện tranh</string>
